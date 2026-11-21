@@ -49,6 +49,7 @@
       "llm": "System prompt",
       "chatNavigation": "Chat navigation",
       "chat": "Chat",
+      "ocr": "OCR Verifier",
       "about": "About",
       "team": "Team",
       "aboutNavigation": "Project navigation",

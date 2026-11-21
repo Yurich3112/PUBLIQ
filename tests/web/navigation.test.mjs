@@ -5,8 +5,8 @@ import { navbarAtTop, navigationActive, pageBreadcrumbs, primaryNavigation, seco
 
 test('navigation visibility keeps administration behind the server role decision', () => {
   assert.deepEqual(primaryNavigation(false, false).map(item => item.href), ['/', '/about']);
-  assert.deepEqual(primaryNavigation(false, true).map(item => item.href), ['/', '/about', '/chat']);
-  assert.deepEqual(primaryNavigation(true, true).map(item => item.href), ['/', '/about', '/chat', '/admin']);
+  assert.deepEqual(primaryNavigation(false, true).map(item => item.href), ['/', '/about', '/chat', '/ocr']);
+  assert.deepEqual(primaryNavigation(true, true).map(item => item.href), ['/', '/about', '/chat', '/ocr', '/admin']);
   assert.equal(secondaryNavigation('/chat', false), null);
   assert.equal(secondaryNavigation('/chat/settings', false), null);
   const chatTabs = secondaryNavigation('/chat/settings', true).items;

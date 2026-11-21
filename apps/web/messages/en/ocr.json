@@ -1,0 +1,86 @@
+{
+  "ocr": {
+    "title": "Handwritten & Scan OCR Verifier",
+    "subtitle": "1:1 side-by-side comparison of UDIP request scans with local Ollama VLM transcription (100% air-gap).",
+    "uploadButton": "Upload request scan (PDF/PNG/JPG)",
+    "uploadAnother": "Upload another document",
+    "confirmButton": "Confirm request text",
+    "illegibleButton": "Illegible scan — Generate 7-day clarification notice",
+    "dropTitle": "Drop a scanned UDIP request here",
+    "dropHint": "Supported formats: PDF, PNG, JPEG (up to 20 MiB). Graph-paper grid lines are erased automatically.",
+    "processing": "Running local OCR…",
+    "processingFile": "Analyzing document: {name}",
+    "processingStages": "Stage 1: OpenCV grid eraser → Stage 2: atomic word blocks → Stage 3: whole-row Ollama VLM → Stage 4: 1:1 DP box merging",
+    "scanPaneLabel": "Document scan preview with word bounding boxes",
+    "transcriptionPaneLabel": "Editable transcription pane",
+    "transcriptionTitle": "1:1 Document Reproduction (click any word to edit)",
+    "transcriptionHint": "Click a word to highlight it 1:1 (use ←/→ arrows to step through words, Enter or second click to edit). Red low-confidence words clear once edited (Alt+N — next uncertain).",
+    "nextUncertain": "Next uncertain (Alt+N)",
+    "pageIndicator": "Page {current} of {total}",
+    "gridErasedBadge": "Grid erased",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "resetZoom": "Reset zoom to 100%",
+    "scanAlt": "Document scan — page {page}",
+    "noPreviewImage": "No preview image returned for this page.",
+    "overlayAriaLabel": "Interactive OCR word bounding-box overlay",
+    "editWord": "Edit word",
+    "editWordInput": "Edit recognized word: {word}",
+    "noBodyWords": "No body words detected on this page.",
+    "illegibleBannerTitle": "Low handwriting legibility — clarification notice recommended",
+    "illegibleBannerHint": "Average confidence fell below the threshold. Generate a formal 7-day clarification notice with one click.",
+    "sourceMode": {
+      "digital_text": "Digital PDF",
+      "handwritten_ocr": "Handwritten OCR",
+      "printed_ocr": "Printed scan OCR"
+    },
+    "legend": {
+      "high": "High confidence (≥80%)",
+      "uncertain": "Uncertain (50–79%)",
+      "low": "Low confidence — needs review (<80%)",
+      "stamp": "Kancelaria stamp"
+    },
+    "stamp": {
+      "receivedDate": "Received date (stamp)",
+      "registryNumber": "Registry number (stamp)",
+      "showRaw": "Show raw stamp text ({count})",
+      "hideRaw": "Hide raw stamp text"
+    },
+    "inspector": {
+      "selected": "Selected word",
+      "original": "OCR"
+    },
+    "stats": {
+      "confidence": "Avg confidence: {percent}%",
+      "edited": "Edited words: {count}",
+      "duration": "Local time: {ms} ms"
+    },
+    "verified": {
+      "title": "Request text confirmed by clerk",
+      "copyText": "Copy confirmed text",
+      "copied": "Copied"
+    },
+    "clarification": {
+      "title": "7-Day Request Clarification Notice",
+      "subtitle": "Ready-to-edit BKS UM Bydgoszcz clarification draft for illegible scans.",
+      "editorLabel": "Clarification notice draft text",
+      "copy": "Copy text",
+      "copied": "Copied",
+      "downloadTxt": "Download .txt",
+      "close": "Close"
+    },
+    "errors": {
+      "denied": "Access denied — please sign in again.",
+      "invalid": "Invalid file or request.",
+      "tooLarge": "File exceeds the 20 MiB limit.",
+      "unsupportedMediaType": "Only PDF, PNG, and JPEG files are supported.",
+      "invalidDocument": "The document is corrupted or exceeds the page limit.",
+      "busy": "An OCR analysis is already running for your account.",
+      "unavailable": "The local OCR worker or Ollama is unavailable.",
+      "timeout": "OCR processing timed out. Please try again.",
+      "failed": "Could not analyze the document. Please try again."
+    }
+  }
+}

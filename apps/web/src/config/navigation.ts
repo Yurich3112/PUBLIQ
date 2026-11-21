@@ -1,16 +1,17 @@
-export type NavigationIcon = "home" | "about" | "team" | "chat" | "admin" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
-export type NavigationHref = "/" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/admin" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
-export type NavigationLabel = "home" | "about" | "team" | "chat" | "llm" | "admin" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
+export type NavigationIcon = "home" | "about" | "team" | "chat" | "ocr" | "admin" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
+export type NavigationHref = "/" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/ocr" | "/admin" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
+export type NavigationLabel = "home" | "about" | "team" | "chat" | "ocr" | "llm" | "admin" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
 export type NavigationItem = { href: NavigationHref; label: NavigationLabel; icon: NavigationIcon; exact?: boolean };
 
 const home: NavigationItem = { href: "/", label: "home", icon: "home", exact: true };
 const admin: NavigationItem = { href: "/admin", label: "admin", icon: "admin" };
 const about: NavigationItem = { href: "/about", label: "about", icon: "about" };
 const chat: NavigationItem = { href: "/chat", label: "chat", icon: "chat" };
+const ocr: NavigationItem = { href: "/ocr", label: "ocr", icon: "ocr" };
 
 /** Visibility is supplied by the server's role decision; destinations still enforce authorization. */
 export function primaryNavigation(allowAdmin: boolean, signedIn: boolean): NavigationItem[] {
-  return [home, about, ...(signedIn ? [chat] : []), ...(allowAdmin ? [admin] : [])];
+  return [home, about, ...(signedIn ? [chat, ocr] : []), ...(allowAdmin ? [admin] : [])];
 }
 
 export function normalizeNavigationPath(pathname: string): string {
@@ -58,10 +59,11 @@ export function secondaryNavigation(pathname: string, allowAdmin: boolean): { la
   return null;
 }
 
-export type BreadcrumbRoute = { label: "home" | "about" | "team" | "chat" | "admin" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/about" | "/chat" | "/admin" | "/test" | "/admin/products" };
+export type BreadcrumbRoute = { label: "home" | "about" | "team" | "chat" | "ocr" | "admin" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/about" | "/chat" | "/ocr" | "/admin" | "/test" | "/admin/products" };
 export function pageBreadcrumbs(pathname: string): BreadcrumbRoute[] {
   const path = normalizeNavigationPath(pathname);
   if (path === "/chat") return [{ label: "home", href: "/" }, { label: "chat" }];
+  if (path === "/ocr") return [{ label: "home", href: "/" }, { label: "ocr" }];
   if (path === "/chat/settings") return [{ label: "home", href: "/" }, { label: "chat", href: "/chat" }, { label: "llm" }];
   if (path === "/about") return [{ label: "home", href: "/" }, { label: "about" }];
   if (path === "/about/team") return [{ label: "home", href: "/" }, { label: "about", href: "/about" }, { label: "team" }];

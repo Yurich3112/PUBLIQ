@@ -16,6 +16,7 @@ export const API_ROUTES = {
   fileUpload: `${API_BASE_PATH}/admin/files/upload`,
   chat: `${API_BASE_PATH}/chat`,
   chatAttachment: `${API_BASE_PATH}/chat/attachments/{uuid}`,
+  ocrAnalyze: `${API_BASE_PATH}/ocr/analyze`,
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,
     renew: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.renew}`,
