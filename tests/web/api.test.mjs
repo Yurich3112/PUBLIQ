@@ -9,7 +9,7 @@ import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
 import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
 import { applyUdipRedactions, suggestUdipRedactions } from '../../apps/web/src/server/udip/redaction.ts';
 import { rankUdipPrecedents } from '../../apps/web/src/server/udip/recommendations.ts';
-import { summarizeWithPllum } from '../../apps/web/src/server/udip/pllum.ts';
+import { draftWithPllum, summarizeWithPllum } from '../../apps/web/src/server/udip/pllum.ts';
 
 test('UDIP PLLuM stays on loopback and preserves enumerated questions when the model merges them', async t => {
   const previous = process.env.UDIP_PLLUM_URL;
@@ -20,7 +20,9 @@ test('UDIP PLLuM stays on loopback and preserves enumerated questions when the m
   const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(url.href, 'http://127.0.0.1:18085/v1/chat/completions');
     assert.equal(options.redirect, 'error');
-    const { messages } = JSON.parse(options.body);
+    const { messages, response_format } = JSON.parse(options.body);
+    assert.equal(response_format.type, 'json_object');
+    assert.equal(response_format.schema.properties.questions.items.properties.dataSought.type, 'array');
     const { enumeratedQuestions } = JSON.parse(messages[1].content);
     assert.deepEqual(enumeratedQuestions, ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
     return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
@@ -34,6 +36,31 @@ test('UDIP PLLuM stays on loopback and preserves enumerated questions when the m
   process.env.UDIP_PLLUM_URL = 'http://127.0.0.1:18085';
   const summary = await summarizeWithPllum(input);
   assert.deepEqual(summary.questions.map(question => question.text), ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
+});
+
+test('UDIP PLLuM drafts only points with evidence and receives questions from the confirmed copy', async t => {
+  const previous = process.env.UDIP_PLLUM_URL;
+  process.env.UDIP_PLLUM_URL = 'http://127.0.0.1:18085';
+  t.after(() => {
+    if (previous === undefined) delete process.env.UDIP_PLLUM_URL;
+    else process.env.UDIP_PLLUM_URL = previous;
+  });
+  const question = 'Ile wyniósł koszt?';
+  const text = 'Koszt wyniósł 12500 zł.';
+  let generated = { points: [{ index: 0, text }] };
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const { messages, response_format } = JSON.parse(options.body);
+    const { points } = JSON.parse(messages[1].content);
+    assert.deepEqual(points, [{ index: 0, question, evidence: [text] }]);
+    assert.ok(!messages[1].content.includes('13.10.2026'));
+    assert.equal(response_format.schema.properties.points.maxItems, 1);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(generated) } }] });
+  });
+  const request = `1. ${question}\n2. Jaki jest termin?\nData pisma: 13.10.2026`;
+  const supported = [{ index: 0, question, evidence: [text] }];
+  assert.deepEqual(await draftWithPllum(request, supported, []), generated);
+  generated = { points: [{ index: 1, text: 'Termin to 13.10.2026.' }] };
+  assert.equal(await draftWithPllum(request, supported, []), null);
 });
 
 test('UDIP matches questions independently, reports another period and exposes no historical amounts', () => {

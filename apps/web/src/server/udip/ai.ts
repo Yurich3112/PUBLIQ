@@ -59,7 +59,7 @@ export async function suggestUdipDraft(actor: UdipActor, caseUuid: string, input
       sourceDocumentIds: sources.map(source => source.id) };
   });
   const modelPoints = points.flatMap((point, index) => point.status === "supported" ? [{
-    index, evidence: sourcesPerPoint[index].map(source => source.text.slice(0, excerptSize)),
+    index, question: point.question, evidence: sourcesPerPoint[index].map(source => source.text.slice(0, excerptSize)),
   }] : []);
   let mode: "pllum" | "template" = "template";
   if (modelPoints.length) {

@@ -23,5 +23,5 @@ export async function readUdipScan(bytes: Uint8Array) {
   if (!target) return null;
   return postLocalModel(new URL("/v1/tasks/udip/ocr", target.url), { content_base64: Buffer.from(bytes).toString("base64") },
     z.object({ text: z.string().trim().min(1).max(udipMaxTextChars).refine(text => !text.includes("\0")), pages: udipOcrPagesSchema }),
-    { timeout: 92_000, maxBytes: 2_000_000, token: target.token });
+    { timeout: 250_000, maxBytes: 2_000_000, token: target.token });
 }

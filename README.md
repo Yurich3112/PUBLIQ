@@ -236,8 +236,14 @@ In `apps/pyworker/.env`, set `UDIP_PII_MODEL_DIR` to the absolute path of the
 For Polish OCR, extract the official
 [PP-OCRv5_server_det and latin_PP-OCRv5_mobile_rec inference models](https://www.paddleocr.ai/v3.4.1/en/version3.x/pipeline_usage/OCR.html)
 and set `UDIP_OCR_DET_MODEL_DIR` and `UDIP_OCR_REC_MODEL_DIR` to those local directories.
-Then run `pnpm pyworker:dev` and exercise the API in order using the
+Then run `pnpm dev:pyworker` and exercise the API in order using the
 [Stage 5 contracts](openspec/changes/establish-udip-backend-contract/design.md#stage-5-local-models).
+For cold model starts behind the local proxy, use the timeout settings in the
+[OCR setup guide](docs/0319-ocr-local-setup.md).
+An authorized clerk can open `/pl/udip/cases/{caseId}` to review the case
+documents and the sources for each saved draft point. Open a document to compare
+the original PDF with its transcription, retry OCR after an error, or save a
+manual correction as a new revision.
 
 ## Current acceptance scope
 

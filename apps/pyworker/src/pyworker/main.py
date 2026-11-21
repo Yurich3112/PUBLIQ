@@ -228,12 +228,12 @@ def create_app(
             )
             return result
 
-    async def infer(operation, value):
+    async def infer(operation, value, timeout: int):
         if not app.state.ready or app.state.slots.locked():
             return JSONResponse({"error": "unavailable"}, status_code=503)
         async with app.state.slots:
             try:
-                return await asyncio.wait_for(asyncio.to_thread(operation, value), timeout=90)
+                return await asyncio.wait_for(asyncio.to_thread(operation, value), timeout=timeout)
             except TimeoutError:
                 return JSONResponse({"error": "task_timeout"}, status_code=504)
             except ModelUnavailable:
@@ -244,11 +244,11 @@ def create_app(
 
     @app.post("/v1/tasks/udip/pii")
     async def pii(task: UdipPiiRequest):
-        result = await infer(detect_pii, task.text)
+        result = await infer(detect_pii, task.text, timeout=90)
         return {"suggestions": result} if isinstance(result, list) else result
 
     @app.post("/v1/tasks/udip/ocr")
     async def ocr(task: UdipOcrRequest):
-        return await infer(read_pdf_scan, task.content_base64)
+        return await infer(read_pdf_scan, task.content_base64, timeout=settings.ocr_timeout)
 
     return app
