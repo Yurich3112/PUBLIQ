@@ -14,7 +14,7 @@
     "scanPaneLabel": "Podgląd skanu z ramkami słów",
     "transcriptionPaneLabel": "Panel transkrypcji i edycji",
     "transcriptionTitle": "Odwzorowanie 1:1 dokumentu (kliknij słowo, aby poprawić)",
-    "transcriptionHint": "Kliknięcie słowa podświetla je na skanie i w dokumencie 1:1. Czerwone słowa (niska pewność) przestają świecić po ręcznej korekcie (Alt+N — następne niepewne).",
+    "transcriptionHint": "Kliknięcie słowa podświetla je 1:1 (strzałki ←/→ przechodzą między słowami, Enter lub drugie kliknięcie edytuje). Czerwone słowa znikają po ręcznej korekcie (Alt+N — następne niepewne).",
     "nextUncertain": "Następne niepewne (Alt+N)",
     "pageIndicator": "Strona {current} z {total}",
     "gridErasedBadge": "Usunięto kratkę",

@@ -25,6 +25,7 @@ import {
   assembleVerifiedBodyText,
   buildClarificationNoticeDraft,
   buildVerifiedPayload,
+  findAdjacentWordId,
   findNextUncertainWordId,
 } from "./ocr-helpers";
 import { ScanCanvas } from "./scan-canvas";
@@ -126,6 +127,17 @@ export function OcrSplitVerifier({
     setPageIndex(next.pageIndex);
     setSelectedWordId(next.wordId);
   }, [analysis, editedWords, selectedWordId]);
+
+  const handleStepWord = useCallback(
+    (direction: 1 | -1) => {
+      if (!analysis) return;
+      const next = findAdjacentWordId(analysis, selectedWordId, direction, pageIndex);
+      if (!next) return;
+      setPageIndex(next.pageIndex);
+      setSelectedWordId(next.wordId);
+    },
+    [analysis, selectedWordId, pageIndex],
+  );
 
   function handleSelectWord(word: OcrWord) {
     setSelectedWordId(word.id);
@@ -316,6 +328,7 @@ export function OcrSplitVerifier({
               onSelectWord={handleSelectWord}
               onEditWord={handleEditWord}
               onJumpNextUncertain={handleJumpNextUncertain}
+              onStepWord={handleStepWord}
             />
           </div>
 

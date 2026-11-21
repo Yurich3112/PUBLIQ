@@ -5,6 +5,7 @@ import {
   assembleVerifiedBodyText,
   buildClarificationNoticeDraft,
   buildVerifiedPayload,
+  findAdjacentWordId,
   findNextUncertainWordId,
   getWordTier,
 } from '../../apps/web/src/app/[locale]/ocr/ocr-helpers.ts';
@@ -108,6 +109,13 @@ test('word tier classification, inline edits, and uncertain navigation work end-
   assert.deepEqual(findNextUncertainWordId(SAMPLE_ANALYSIS, {}, null), { pageIndex: 0, wordId: 'p0_w2' });
   assert.deepEqual(findNextUncertainWordId(SAMPLE_ANALYSIS, {}, 'p0_w2'), { pageIndex: 0, wordId: 'p0_w3' });
   assert.deepEqual(findNextUncertainWordId(SAMPLE_ANALYSIS, {}, 'p0_w3'), { pageIndex: 0, wordId: 'p0_w2' });
+
+  // Left/right arrow navigation steps through all words in reading order and wraps cleanly.
+  assert.deepEqual(findAdjacentWordId(SAMPLE_ANALYSIS, null, 1), { pageIndex: 0, wordId: 'p0_w0' });
+  assert.deepEqual(findAdjacentWordId(SAMPLE_ANALYSIS, 'p0_w0', 1), { pageIndex: 0, wordId: 'p0_w1' });
+  assert.deepEqual(findAdjacentWordId(SAMPLE_ANALYSIS, 'p0_w1', 1), { pageIndex: 0, wordId: 'p0_w2' });
+  assert.deepEqual(findAdjacentWordId(SAMPLE_ANALYSIS, 'p0_w3', 1), { pageIndex: 0, wordId: 'p0_w0' });
+  assert.deepEqual(findAdjacentWordId(SAMPLE_ANALYSIS, 'p0_w0', -1), { pageIndex: 0, wordId: 'p0_w3' });
 
   // Editing clears uncertain status and updates assembled body text without including stamp lines.
   const edits = { p0_w3: 'PRZYBYŁO' };

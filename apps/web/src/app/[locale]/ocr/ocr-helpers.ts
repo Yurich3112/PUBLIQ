@@ -77,6 +77,43 @@ export function findNextUncertainWordId(
   return currentIdx === -1 ? uncertain[0] : uncertain[(currentIdx + 1) % uncertain.length];
 }
 
+export function findAdjacentWordId(
+  analysis: OcrAnalysisResponse,
+  currentWordId: string | null,
+  direction: 1 | -1,
+  currentPageIndex = 0,
+): { pageIndex: number; wordId: string } | null {
+  const ordered: { pageIndex: number; wordId: string }[] = [];
+  for (const page of analysis.pages) {
+    const seen = new Set<string>();
+    const wordSet = new Set(page.words.map(word => word.id));
+    for (const line of page.lines) {
+      for (const wordId of line.word_ids) {
+        if (wordSet.has(wordId) && !seen.has(wordId)) {
+          seen.add(wordId);
+          ordered.push({ pageIndex: page.page_index, wordId });
+        }
+      }
+    }
+    for (const word of page.words) {
+      if (!seen.has(word.id)) {
+        seen.add(word.id);
+        ordered.push({ pageIndex: page.page_index, wordId: word.id });
+      }
+    }
+  }
+  if (!ordered.length) return null;
+  if (!currentWordId) {
+    const onPage = ordered.filter(item => item.pageIndex === currentPageIndex);
+    const pool = onPage.length ? onPage : ordered;
+    return direction === 1 ? pool[0] : pool[pool.length - 1];
+  }
+  const currentIdx = ordered.findIndex(item => item.wordId === currentWordId);
+  if (currentIdx === -1) return ordered[0];
+  const nextIdx = (currentIdx + direction + ordered.length) % ordered.length;
+  return ordered[nextIdx];
+}
+
 export function buildVerifiedPayload({
   analysis,
   fileName,

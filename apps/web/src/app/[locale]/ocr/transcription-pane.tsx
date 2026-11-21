@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ExclamationTriangle, PencilSquare } from "react-bootstrap-icons";
 import type { OcrPage, OcrWord } from "@/schemas/ocr";
@@ -19,6 +19,7 @@ export function TranscriptionPane({
   onSelectWord,
   onEditWord,
   onJumpNextUncertain,
+  onStepWord,
 }: {
   page: OcrPage;
   zoom: number;
@@ -31,6 +32,7 @@ export function TranscriptionPane({
   onSelectWord: (word: OcrWord) => void;
   onEditWord: (wordId: string, nextText: string) => void;
   onJumpNextUncertain: () => void;
+  onStepWord: (direction: 1 | -1) => void;
 }) {
   const t = useTranslations("ocr");
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -38,7 +40,10 @@ export function TranscriptionPane({
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetContainerRef = useRef<HTMLDivElement>(null);
 
-  const wordMap = new Map(page.words.map(word => [word.id, word]));
+  const wordMap = useMemo(
+    () => new Map(page.words.map(word => [word.id, word])),
+    [page.words],
+  );
 
   useEffect(() => {
     if (editingWordId && inputRef.current) {
@@ -61,17 +66,57 @@ export function TranscriptionPane({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
+        setEditingWordId(null);
         onJumpNextUncertain();
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const inTextField =
+        target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target?.isContentEditable;
+      if (inTextField || editingWordId) return;
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        onStepWord(1);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        onStepWord(-1);
+      } else if (event.key === "Enter" && selectedWordId) {
+        const current = wordMap.get(selectedWordId);
+        if (current) {
+          event.preventDefault();
+          setEditingWordId(current.id);
+          setDraftValue(getWordDisplayText(current, editedWords));
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onJumpNextUncertain]);
+  }, [
+    onJumpNextUncertain,
+    onStepWord,
+    editingWordId,
+    selectedWordId,
+    wordMap,
+    editedWords,
+  ]);
 
-  function handleClickWord(word: OcrWord) {
+  function beginEdit(word: OcrWord) {
     onSelectWord(word);
     setEditingWordId(word.id);
     setDraftValue(getWordDisplayText(word, editedWords));
+  }
+
+  function handleClickWord(word: OcrWord) {
+    if (selectedWordId === word.id) {
+      beginEdit(word);
+    } else {
+      setEditingWordId(null);
+      onSelectWord(word);
+    }
   }
 
   function commitEdit(wordId: string) {
@@ -139,7 +184,7 @@ export function TranscriptionPane({
             </span>
           </div>
           {editingWordId !== selectedWord.id && (
-            <Button size="sm" tone="ghost" onClick={() => handleClickWord(selectedWord)}>
+            <Button size="sm" tone="ghost" onClick={() => beginEdit(selectedWord)}>
               <PencilSquare aria-hidden="true" className="size-3.5" />
               {t("editWord")}
             </Button>
@@ -221,6 +266,7 @@ export function TranscriptionPane({
                   type="button"
                   data-word-token={word.id}
                   onClick={() => handleClickWord(word)}
+                  onDoubleClick={() => beginEdit(word)}
                   title={`${displayText} (${Math.round(word.confidence * 100)}%)`}
                   style={{
                     left: `${leftPct}%`,

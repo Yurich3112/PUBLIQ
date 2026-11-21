@@ -14,7 +14,7 @@
     "scanPaneLabel": "Document scan preview with word bounding boxes",
     "transcriptionPaneLabel": "Editable transcription pane",
     "transcriptionTitle": "1:1 Document Reproduction (click any word to edit)",
-    "transcriptionHint": "Clicking a word highlights it on both the scan and the 1:1 reproduced document. Red low-confidence words clear once edited by the clerk (Alt+N — next uncertain).",
+    "transcriptionHint": "Click a word to highlight it 1:1 (use ←/→ arrows to step through words, Enter or second click to edit). Red low-confidence words clear once edited (Alt+N — next uncertain).",
     "nextUncertain": "Next uncertain (Alt+N)",
     "pageIndicator": "Page {current} of {total}",
     "gridErasedBadge": "Grid erased",
