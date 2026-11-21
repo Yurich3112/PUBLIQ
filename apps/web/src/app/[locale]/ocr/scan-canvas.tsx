@@ -47,7 +47,7 @@ export function ScanCanvas({
 
   return (
     <section aria-label={t("scanPaneLabel")} className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>{t("pageIndicator", { current: page.page_index + 1, total: pageCount })}</span>
           {page.grid_removed && (
@@ -107,17 +107,6 @@ export function ScanCanvas({
             <ZoomIn aria-hidden="true" className="size-4" />
           </IconButton>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4 border-b border-border/70 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border-2 border-red-600 bg-red-500/25" />
-          {t("legend.low")}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border-2 border-blue-600 bg-blue-500/25" />
-          {t("inspector.selected")}
-        </span>
       </div>
 
       <div ref={containerRef} className="flex-1 overflow-auto bg-neutral-950/5 p-4 dark:bg-neutral-950/40">

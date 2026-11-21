@@ -19,7 +19,7 @@ import {
   type OcrWord,
   type VerifiedOcrPayload,
 } from "@/schemas/ocr";
-import { Button, Throbber } from "@/ui/basic";
+import { Button, Input, Throbber } from "@/ui/basic";
 import { ClarificationDraftModal } from "./clarification-draft-modal";
 import {
   assembleVerifiedBodyText,
@@ -27,6 +27,7 @@ import {
   buildVerifiedPayload,
   findAdjacentWordId,
   findNextUncertainWordId,
+  getWordDisplayText,
 } from "./ocr-helpers";
 import { ScanCanvas } from "./scan-canvas";
 import { TranscriptionPane } from "./transcription-pane";
@@ -169,6 +170,10 @@ export function OcrSplitVerifier({
   }
 
   const activePage = analysis?.pages[pageIndex] ?? null;
+  const selectedWord =
+    activePage && selectedWordId
+      ? activePage.words.find(w => w.id === selectedWordId) ?? null
+      : null;
   const assembledPreview = analysis ? assembleVerifiedBodyText(analysis, editedWords) : "";
   const clarificationDraft = buildClarificationNoticeDraft({
     fileName: fileName || "wniosek.pdf",
@@ -301,7 +306,49 @@ export function OcrSplitVerifier({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Shared top metadata & selected-word bar so both document sheets below stay 100% level */}
+          <div className="grid grid-cols-1 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 sm:grid-cols-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-medium text-muted-foreground">{t("stamp.receivedDate")}</span>
+              <Input
+                type="date"
+                value={receivedDate}
+                onChange={event => setReceivedDate(event.target.value)}
+                aria-label={t("stamp.receivedDate")}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-medium text-muted-foreground">{t("stamp.registryNumber")}</span>
+              <Input
+                type="text"
+                value={registryNumber}
+                placeholder="3468/2026"
+                onChange={event => setRegistryNumber(event.target.value)}
+                aria-label={t("stamp.registryNumber")}
+              />
+            </label>
+            <div className="flex flex-col justify-center gap-1 text-xs">
+              <span className="font-medium text-muted-foreground">{t("inspector.selected")}</span>
+              {selectedWord ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <code className="font-mono font-semibold text-foreground">
+                      {getWordDisplayText(selectedWord, editedWords)}
+                    </code>
+                    <span className="text-muted-foreground">
+                      (OCR: {selectedWord.text} · {Math.round(selectedWord.confidence * 100)}%)
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border px-2.5 py-2 text-muted-foreground">
+                  {t("transcriptionHint")}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
             <ScanCanvas
               page={activePage}
               pageCount={analysis.page_count}
@@ -319,12 +366,8 @@ export function OcrSplitVerifier({
             <TranscriptionPane
               page={activePage}
               zoom={zoom}
-              receivedDate={receivedDate}
-              registryNumber={registryNumber}
               selectedWordId={selectedWordId}
               editedWords={editedWords}
-              onReceivedDateChange={setReceivedDate}
-              onRegistryNumberChange={setRegistryNumber}
               onSelectWord={handleSelectWord}
               onEditWord={handleEditWord}
               onJumpNextUncertain={handleJumpNextUncertain}
