@@ -203,6 +203,18 @@ Its readiness endpoint is `http://127.0.0.1:8010/health/ready` (`/health` is an 
 virtualenv and never install dependencies or update private environment files.
 See [all workspace commands](docs/0205-workspace-commands.md).
 
+## Local PLLuM model
+
+The 2.49 GB PLLuM 4B Instruct model (Q4_K_M GGUF) is available in two parts
+in the [GitHub release for `pllum-4b-instruct-2512-q4-k-m`](https://github.com/Yurich3112/asystent_hacknation2026_FFF/releases/tag/pllum-4b-instruct-2512-q4-k-m).
+The release keeps the large weights outside the Git checkout and includes
+instructions to reassemble the GGUF and verify its SHA-256 checksum.
+
+Once downloaded and reassembled, the model runs offline with `llama-server`.
+Local inference was verified at `http://127.0.0.1:8080/v1/chat/completions`.
+The existing application chat still uses OpenAI while the backend integration is
+being developed.
+
 ## Current acceptance scope
 
 Keycloak login, localized profile/role display and the administrator product/file
