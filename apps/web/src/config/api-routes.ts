@@ -16,6 +16,10 @@ export const API_ROUTES = {
   fileUpload: `${API_BASE_PATH}/admin/files/upload`,
   chat: `${API_BASE_PATH}/chat`,
   chatAttachment: `${API_BASE_PATH}/chat/attachments/{uuid}`,
+  udip: {
+    cases: `${API_BASE_PATH}/udip/cases`,
+    caseDetail: `${API_BASE_PATH}/udip/cases/{caseId}`,
+  },
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,
     renew: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.renew}`,

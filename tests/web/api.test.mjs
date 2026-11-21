@@ -4,6 +4,38 @@ import { getLiveness, getReadiness } from '../../apps/web/src/server/health.ts';
 import { jsonNoStore } from '../../apps/web/src/server/http.ts';
 import { API_ROUTES } from '../../apps/web/src/config/api-routes.ts';
 import { readOpenAiReply, streamOpenAiChat } from '../../apps/web/src/server/openai-chat.ts';
+import { udipCaseListQuerySchema, udipMaxFileBytes } from '../../apps/web/src/schemas/udip.ts';
+import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
+
+function udipUpload({ dates = ['2026-11-21', '2026-12-05'], name = 'wniosek.pdf', bytes = '%PDF-1.7\n', duplicate = false } = {}) {
+  const form = new FormData();
+  form.set('clientRequestId', '9f3a4089-8379-4834-b6bf-58e2ef184b97');
+  form.set('receivedDate', dates[0]);
+  form.set('dueDate', dates[1]);
+  form.set('file', new Blob([bytes]), name);
+  if (duplicate) form.append('file', new Blob([bytes]), name);
+  return new Request(`http://localhost${API_ROUTES.udip.cases}`, { method: 'POST', body: form });
+}
+
+test('UDIP intake validates calendar dates and the file format without trusting MIME headers', async () => {
+  const result = await readUdipUpload(udipUpload());
+  assert.equal(result.status, 'ok');
+  assert.equal(result.upload.file.mediaType, 'application/pdf');
+  assert.equal(result.upload.metadata.receivedDate, '2026-11-21');
+  assert.equal((await readUdipUpload(udipUpload({ dates: ['2026-02-29', '2026-03-01'] }))).status, 'invalid');
+  assert.equal((await readUdipUpload(udipUpload({ dates: ['2026-11-21', '2026-11-20'] }))).status, 'invalid');
+  assert.equal((await readUdipUpload(udipUpload({ name: 'wniosek.docx', bytes: 'PK\x03\x04' }))).status, 'unsupportedMediaType');
+  assert.equal((await readUdipUpload(udipUpload({ duplicate: true }))).status, 'invalid');
+  assert.equal(udipCaseListQuerySchema.safeParse({ limit: '101' }).success, false);
+});
+
+test('UDIP intake bounds uploads even when Content-Length is missing', async () => {
+  const request = new Request('http://localhost/api/v1/udip/cases', {
+    method: 'POST', duplex: 'half', headers: { 'Content-Type': 'multipart/form-data; boundary=test' },
+    body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(udipMaxFileBytes + 70_000)); } }),
+  });
+  assert.equal((await readUdipUpload(request)).status, 'tooLarge');
+});
 
 function providerStream(events) {
   const bytes = new TextEncoder().encode(events.map(event => `data: ${JSON.stringify(event)}\r\n\r\n`).join(''));
