@@ -9,6 +9,32 @@ import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
 import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
 import { applyUdipRedactions, suggestUdipRedactions } from '../../apps/web/src/server/udip/redaction.ts';
 import { rankUdipPrecedents } from '../../apps/web/src/server/udip/recommendations.ts';
+import { summarizeWithPllum } from '../../apps/web/src/server/udip/pllum.ts';
+
+test('UDIP PLLuM stays on loopback and preserves enumerated questions when the model merges them', async t => {
+  const previous = process.env.UDIP_PLLUM_URL;
+  t.after(() => {
+    if (previous === undefined) delete process.env.UDIP_PLLUM_URL;
+    else process.env.UDIP_PLLUM_URL = previous;
+  });
+  const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url.href, 'http://127.0.0.1:18085/v1/chat/completions');
+    assert.equal(options.redirect, 'error');
+    const { messages } = JSON.parse(options.body);
+    const { enumeratedQuestions } = JSON.parse(messages[1].content);
+    assert.deepEqual(enumeratedQuestions, ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      topic: 'Przystanki', tags: ['transport'], dataSought: [], period: null, questions: [{ text: 'Koszty i liczba przystanków' }],
+    }) } }] });
+  });
+  const input = 'Proszę o odpowiedź. 1. Ile wyniósł koszt? 2. Ile przystanków powstało?';
+  process.env.UDIP_PLLUM_URL = 'https://example.com';
+  assert.equal(await summarizeWithPllum(input), null);
+  assert.equal(fetch.mock.callCount(), 0);
+  process.env.UDIP_PLLUM_URL = 'http://127.0.0.1:18085';
+  const summary = await summarizeWithPllum(input);
+  assert.deepEqual(summary.questions.map(question => question.text), ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
+});
 
 test('UDIP matches questions independently, reports another period and exposes no historical amounts', () => {
   const requested = { from: '2026-01-01', to: '2026-12-31' };

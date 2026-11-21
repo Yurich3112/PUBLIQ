@@ -100,6 +100,37 @@ Matching ranks normalized topic and question terms against approved JSONB entrie
 
 To create ten synthetic cases for a local demo, migrate the database, run `pnpm build:database`, then run `pnpm --filter @modulon-poc/database db:seed:udip-demo <local-user-uuid>`. The seed uses the database package `.env` or `DATABASE_URL` and preserves existing cases on a repeat run. The first run creates five cases of each urgency relative to the seed date.
 
+### Stage 5 local models
+
+The private Python worker uses the existing bearer token for `POST /v1/tasks/udip/pii`
+and `POST /v1/tasks/udip/ocr`. Enable each model by providing paths to local weights.
+The PII operation returns only category and half-open UTF-16 ranges. Document and
+draft review reads combine these ranges with the local rules. Saves, approval and
+export accept the clerk's exact selection and work with the worker stopped.
+
+On PDF intake, extraction tries embedded text before Polish PP-OCRv5. For failed
+PDF reads, `POST /documents/{documentId}/ocr` retries OCR. Each successful
+transcription is stored as a new revision. The existing document `GET` returns
+`textRevision`, current `extractedText`, and `ocr: { revision, text, pages }`
+when a scan was read. Word boxes are the engine's own `[x,y,w,h]` in raster pixels,
+with the page dimensions supplied for display. Pages may have no boxes.
+Use `PATCH /documents/{documentId}` with `{text, expectedRevision}` to correct
+the transcription. A stale revision returns `409`. Earlier clients can still
+send only `text`. The last OCR read stays available for comparison after a correction.
+
+| Route under `/api/v1/udip/cases/{caseId}` | Contract |
+| --- | --- |
+| `POST /summary/suggest` | Takes `{documentId,revision}` for the confirmed redacted request. Returns `{expectedVersion,summary}` for review and saving through `PATCH /summary`. A pending review returns `409`. An unavailable model or invalid model JSON returns `503`; the manual summary form remains available. |
+| `POST /drafts/suggest` | Takes `{expectedVersion,summaryVersion,intake,points}`. The intake identifies the confirmed redacted request as `{documentId,revision}`. Each mapping in `points` is `{questionId,sources:[{documentId,revision}]}` for confirmed redacted department replies. Returns one point for every summary question with source IDs or `Brak materiału`, plus `mode` (`pllum` or `template`). Save the reviewed proposal with `PUT /drafts` using only each point's `question`, `text` and `sourceDocumentIds`. |
+
+PLLuM accepts only the configured loopback address. Summarization sends the
+confirmed redacted request. Drafting sends excerpts from the confirmed request and
+current replies and up to three topics of published matching records with their
+numbers removed. Points without current evidence stay out of the model call.
+If the output fails validation or adds numerical values outside the current point's
+evidence, use the deterministic draft from the confirmed excerpts. Every saved
+draft still goes through the final redaction and second-user approval flow.
+
 ### Knowledge base and manual fallback
 
 - Administrators upload acts and archived replies. Store original source and version metadata, validated anonymized matching content, proposed cluster and similar record links. The admin graph can show pending placement. Matching reads only approved anonymized versions.

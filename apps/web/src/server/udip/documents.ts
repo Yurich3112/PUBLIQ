@@ -1,13 +1,14 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@modulon-poc/database";
-import { udipMaxFileBytes, type UdipDocumentSummary } from "../../schemas/udip.ts";
+import { udipMaxFileBytes, udipOcrPagesSchema, type UdipDocumentSummary } from "../../schemas/udip.ts";
 import { getDatabase } from "../database.ts";
 import { getFileStore } from "../files.ts";
 import type { UdipActor } from "./access.ts";
 import { extractUdipText } from "./extraction.ts";
 import { caseScope, lockUdipCase } from "./scope.ts";
 import type { UdipFile } from "./upload.ts";
+import { readUdipScan } from "./worker.ts";
 
 export const documentFields = {
   uuid: true, fileName: true, mediaType: true, size: true, kind: true, status: true, assignmentUuid: true,
@@ -54,13 +55,22 @@ export async function storeUdipFile<T>(actorId: string, file: UdipFile,
 
 export async function finishUdipExtraction(document: UdipDocumentSummary, file: UdipFile): Promise<UdipDocumentSummary> {
   if (document.status !== "pending") return document;
-  const extractedText = await extractUdipText(file);
+  const digital = await extractUdipText(file);
+  const ocr = !digital && file.mediaType === "application/pdf" ? await readUdipScan(file.content) : null;
+  const extractedText = digital ?? ocr?.text ?? null;
   const db = getDatabase();
-  const [updated] = await db.udipDocument.updateManyAndReturn({
-    where: { uuid: document.id, status: "pending" },
-    data: { extractedText, textRevision: { increment: 1 }, status: extractedText ? "ready" : "failed" }, select: documentFields,
+  const current = await db.$transaction(async tx => {
+    const [updated] = await tx.udipDocument.updateManyAndReturn({
+      where: { uuid: document.id, status: "pending" },
+      data: { extractedText, textRevision: { increment: 1 }, status: extractedText ? "ready" : "failed" },
+      select: { ...documentFields, textRevision: true },
+    });
+    if (updated && extractedText) await tx.udipTranscription.create({ data: {
+      documentUuid: document.id, revision: updated.textRevision, text: extractedText,
+      source: ocr ? "ocr" : "digital", pages: ocr?.pages,
+    } });
+    return updated ?? tx.udipDocument.findUnique({ where: { uuid: document.id }, select: documentFields });
   });
-  const current = updated ?? await db.udipDocument.findUnique({ where: { uuid: document.id }, select: documentFields });
   return current ? documentSummary(current) : document;
 }
 
@@ -98,6 +108,7 @@ export async function addUdipReply(actor: UdipActor, caseUuid: string, assignmen
       ...request, requestHash: hash, assignmentUuid, kind: "departmentReply", fileVersionUuid: versionUuid,
       fileName: file?.fileName, mediaType: file?.mediaType ?? "text/plain", size: file?.content.byteLength ?? Buffer.byteLength(text ?? ""),
       extractedText: text, status: file ? "pending" : "ready",
+      ...(text ? { transcriptions: { create: { revision: 0, text, source: "manual" } } } : {}),
     }, select: documentFields });
     await tx.udipDepartmentAssignment.updateMany({ where: { uuid: assignmentUuid, respondedAt: null }, data: { respondedAt: new Date() } });
     return documentSummary(row);
@@ -119,26 +130,62 @@ function scopedDocument(actor: UdipActor, caseUuid: string, uuid: string): Prism
   return { uuid, caseUuid, case: caseScope(actor) };
 }
 
-const documentDetailFields = { ...documentFields, extractedText: true } as const;
+const documentDetailFields = { ...documentFields, extractedText: true, textRevision: true, transcriptions: {
+  where: { source: "ocr" }, orderBy: { revision: "desc" }, take: 1, select: { revision: true, text: true, pages: true },
+} } as const;
+
+function documentDetail(row: Prisma.UdipDocumentGetPayload<{ select: typeof documentDetailFields }>) {
+  const { extractedText, textRevision, transcriptions: [ocr], ...fields } = row;
+  return { ...documentSummary(fields), extractedText, textRevision,
+    ocr: ocr ? { ...ocr, pages: udipOcrPagesSchema.parse(ocr.pages) } : null };
+}
 
 export async function readUdipDocument(actor: UdipActor, caseUuid: string, uuid: string) {
   const row = await getDatabase().udipDocument.findFirst({ where: scopedDocument(actor, caseUuid, uuid), select: documentDetailFields });
-  if (!row) return null;
-  const { extractedText, ...fields } = row;
-  return { ...documentSummary(fields), extractedText };
+  return row ? documentDetail(row) : null;
 }
 
-export async function saveUdipTranscription(actor: UdipActor, caseUuid: string, uuid: string, extractedText: string) {
-  const row = await getDatabase().$transaction(async tx => {
-    if (!await lockUdipCase(tx, actor, caseUuid)) return null;
+export function saveUdipTranscription(actor: UdipActor, caseUuid: string, uuid: string, input: { text: string; expectedRevision?: number }) {
+  return getDatabase().$transaction(async tx => {
+    if (!await lockUdipCase(tx, actor, caseUuid)) return { status: "missing" as const };
     const [saved] = await tx.udipDocument.updateManyAndReturn({
-      where: { uuid, caseUuid }, data: { extractedText, textRevision: { increment: 1 }, status: "ready" }, select: documentDetailFields,
+      where: { uuid, caseUuid, textRevision: input.expectedRevision },
+      data: { extractedText: input.text, textRevision: { increment: 1 }, status: "ready" },
+      select: { textRevision: true },
     });
-    return saved;
+    if (!saved) {
+      const existing = await tx.udipDocument.findFirst({ where: { uuid, caseUuid }, select: { textRevision: true } });
+      return existing ? { status: "conflict" as const, currentVersion: existing.textRevision } : { status: "missing" as const };
+    }
+    await tx.udipTranscription.create({ data: { documentUuid: uuid, revision: saved.textRevision, text: input.text, source: "manual" } });
+    const row = await tx.udipDocument.findUniqueOrThrow({ where: { uuid }, select: documentDetailFields });
+    return { status: "ok" as const, document: documentDetail(row) };
   });
-  if (!row) return null;
-  const { extractedText: text, ...fields } = row;
-  return { ...documentSummary(fields), extractedText: text };
+}
+
+export async function retryUdipScan(actor: UdipActor, caseUuid: string, uuid: string) {
+  const db = getDatabase();
+  const record = await db.udipDocument.findFirst({ where: scopedDocument(actor, caseUuid, uuid),
+    select: { status: true, mediaType: true, textRevision: true } });
+  if (!record) return { status: "missing" as const };
+  if (record.mediaType !== "application/pdf" || record.status !== "failed") return { status: "conflict" as const };
+  const original = await readUdipOriginal(actor, caseUuid, uuid);
+  if (!original) return { status: "missing" as const };
+  const ocr = await readUdipScan(original.content);
+  if (!ocr) return { status: "unavailable" as const };
+  return db.$transaction(async tx => {
+    if (!await lockUdipCase(tx, actor, caseUuid)) return { status: "missing" as const };
+    const [saved] = await tx.udipDocument.updateManyAndReturn({
+      where: { uuid, caseUuid, status: "failed", textRevision: record.textRevision },
+      data: { extractedText: ocr.text, textRevision: { increment: 1 }, status: "ready" }, select: { textRevision: true },
+    });
+    if (!saved) return { status: "conflict" as const };
+    await tx.udipTranscription.create({ data: {
+      documentUuid: uuid, revision: saved.textRevision, text: ocr.text, source: "ocr", pages: ocr.pages,
+    } });
+    const row = await tx.udipDocument.findUniqueOrThrow({ where: { uuid }, select: documentDetailFields });
+    return { status: "ok" as const, document: documentDetail(row) };
+  });
 }
 
 export async function readUdipOriginal(actor: UdipActor, caseUuid: string, uuid: string) {

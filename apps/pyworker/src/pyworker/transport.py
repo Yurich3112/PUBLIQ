@@ -9,6 +9,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from pyworker.config import Settings
 
 MAX_BODY_BYTES = 8192
+UDIP_LIMITS = {"/v1/tasks/udip/pii": 1_560_032, "/v1/tasks/udip/ocr": 14 * 1024 * 1024}
 
 
 class TaskBoundary:
@@ -31,6 +32,7 @@ class TaskBoundary:
             )
             return
         body = bytearray()
+        limit = UDIP_LIMITS.get(scope["path"], MAX_BODY_BYTES)
         try:
             async with asyncio.timeout(self.settings.task_timeout):
                 while True:
@@ -38,7 +40,7 @@ class TaskBoundary:
                     if message["type"] == "http.disconnect":
                         return
                     chunk = message.get("body", b"")
-                    if len(body) + len(chunk) > MAX_BODY_BYTES:
+                    if len(body) + len(chunk) > limit:
                         await JSONResponse({"error": "body_too_large"}, status_code=413)(
                             scope, receive, send
                         )

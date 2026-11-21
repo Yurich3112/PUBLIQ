@@ -188,11 +188,32 @@ model UdipDocument {
   uploadedBy     User                      @relation(fields: [uploadedByUuid], references: [uuid], onDelete: Restrict)
   fileVersion    FileVersion?              @relation(fields: [fileVersionUuid], references: [uuid], onDelete: Restrict)
   redactions     UdipRedactionRevision[]
+  transcriptions UdipTranscription[]
 
   @@unique([caseUuid, uploadedByUuid, clientRequestId], map: "udip_document_reply_request_key")
   @@index([caseUuid, createdAt, uuid])
   @@index([caseUuid, assignmentUuid])
   @@map("udip_document")
+}
+
+enum UdipTranscriptionSource {
+  digital
+  manual
+  ocr
+  legacy
+}
+
+model UdipTranscription {
+  documentUuid String                  @map("document_uuid") @db.Uuid
+  revision     Int
+  text         String
+  source       UdipTranscriptionSource
+  pages        Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  document     UdipDocument @relation(fields: [documentUuid], references: [uuid], onDelete: Restrict)
+
+  @@id([documentUuid, revision])
+  @@map("udip_transcription")
 }
 
 model UdipDraftVersion {

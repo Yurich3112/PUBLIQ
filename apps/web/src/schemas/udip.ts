@@ -75,7 +75,7 @@ export const udipText = (max: number) => z.string().trim().min(1).max(max).refin
 export const udipMaxTextChars = 100_000;
 export const udipReplyRequestSchema = z.object({ clientRequestId: z.uuid().transform(id => id.toLowerCase()) }).strict();
 export const udipEmailReplySchema = udipReplyRequestSchema.extend({ text: udipText(udipMaxTextChars) });
-export const udipTranscriptionSchema = z.object({ text: udipText(udipMaxTextChars) }).strict();
+export const udipTranscriptionSchema = z.object({ text: udipText(udipMaxTextChars), expectedRevision: z.int().nonnegative().optional() }).strict();
 export const udipAssignmentInputSchema = z.object({
   departmentCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9._-]{0,79}$/),
   departmentName: udipText(255),
@@ -119,7 +119,17 @@ export const udipConfirmRouteSchema = z.object({
   summaryVersion: z.int().positive(), questionId: z.uuid().transform(id => id.toLowerCase()), unit: udipUnitSchema,
 }).strict();
 export const udipExternalDispatchSchema = z.object({ sentDate: calendarDate }).strict();
-export const udipDocumentDetailSchema = udipDocumentSummarySchema.extend({ extractedText: z.string().nullable() });
+const pageDimension = z.int().positive().max(2701);
+export const udipOcrPagesSchema = z.array(z.object({
+  page: z.int().min(1).max(20), width: pageDimension, height: pageDimension,
+  words: z.array(z.object({
+    text: udipText(500), box: z.tuple([z.int().nonnegative(), z.int().nonnegative(), pageDimension, pageDimension]),
+  })).max(5000),
+})).max(20);
+export const udipDocumentDetailSchema = udipDocumentSummarySchema.extend({
+  extractedText: z.string().nullable(), textRevision: z.int().nonnegative(),
+  ocr: z.object({ revision: z.int().nonnegative(), text: z.string(), pages: udipOcrPagesSchema }).nullable(),
+});
 
 const draftPointInput = z.object({
   question: udipText(1500), sourceDocumentIds: z.array(z.uuid().transform(id => id.toLowerCase())).max(8),
@@ -141,16 +151,30 @@ export const udipDraftVersionSchema = z.object({
 });
 
 export const udipRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
+export const udipSummarySuggestionSchema = z.object({ documentId: udipCaseIdSchema, revision: udipRevisionSchema }).strict();
+export const udipDraftSuggestionSchema = z.object({
+  expectedVersion: expectedDraftVersion, summaryVersion: z.int().positive(),
+  intake: udipSummarySuggestionSchema,
+  points: z.array(z.object({
+    questionId: udipCaseIdSchema, sources: z.array(udipSummarySuggestionSchema).max(3),
+  }).strict()).max(25).refine(points => new Set(points.map(point => point.questionId)).size === points.length),
+}).strict();
 const redactionOffset = z.int().nonnegative();
 export const udipRedactionRangeSchema = z.tuple([redactionOffset, redactionOffset]).refine(([start, end]) => start < end);
 export const udipRedactionRangesSchema = z.array(udipRedactionRangeSchema).max(2000);
 export const udipRedactionInputSchema = z.object({ revision: udipRevisionSchema, ranges: udipRedactionRangesSchema }).strict();
 export const udipApprovalInputSchema = z.object({ revision: udipRevisionSchema }).strict();
 export const udipDispatchInputSchema = udipApprovalInputSchema.extend({ sentDate: calendarDate });
+export const udipModelSuggestionSchema = z.object({
+  kind: z.enum(["private_person", "account_number", "private_url", "private_date", "private_address",
+    "private_email", "private_phone", "other_pii", "secret"]),
+  range: udipRedactionRangeSchema,
+});
+const udipRuleSuggestionSchema = z.object({ kind: z.enum(["pesel", "email", "phone"]), range: udipRedactionRangeSchema });
 export const udipRedactionStateSchema = z.object({
   revision: udipRevisionSchema,
   text: z.string(),
-  suggestions: z.array(z.object({ kind: z.enum(["pesel", "email", "phone"]), range: udipRedactionRangeSchema })),
+  suggestions: z.array(z.union([udipRuleSuggestionSchema, udipModelSuggestionSchema])),
   ranges: udipRedactionRangesSchema.nullable(),
   sanitizedText: z.string().nullable(),
   approvedAt: z.iso.datetime().nullable(),

@@ -21,7 +21,8 @@ export async function PATCH(request: Request, { params }: Context) {
     if (!udipCaseIdSchema.safeParse(documentId).success) return udipProblem("missing");
     const parsed = await readUdipJson(request, udipTranscriptionSchema);
     if (parsed.status !== "ok") return udipProblem(parsed.status);
-    const document = await saveUdipTranscription(actor, id, documentId, parsed.input.text);
-    return document ? jsonNoStore({ document }) : udipProblem("missing");
+    const result = await saveUdipTranscription(actor, id, documentId, parsed.input);
+    if (result.status === "conflict") return udipProblem(result.status, result.currentVersion);
+    return result.status === "ok" ? jsonNoStore({ document: result.document }) : udipProblem("missing");
   });
 }

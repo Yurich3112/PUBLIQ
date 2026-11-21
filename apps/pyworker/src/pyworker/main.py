@@ -11,8 +11,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from pyworker.config import Settings
-from pyworker.contracts import CheckRequest, CheckResponse
+from pyworker.contracts import CheckRequest, CheckResponse, UdipOcrRequest, UdipPiiRequest
 from pyworker.tasks.diagnostic import run_check
+from pyworker.tasks.udip import ModelUnavailable, detect_pii, read_pdf_scan
 from pyworker.transport import TaskBoundary
 
 logger = logging.getLogger("pyworker")
@@ -116,5 +117,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 round((perf_counter() - started) * 1000),
             )
             return result
+
+    async def infer(operation, value):
+        if not app.state.ready or app.state.slots.locked():
+            return JSONResponse({"error": "unavailable"}, status_code=503)
+        async with app.state.slots:
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(operation, value), timeout=90)
+            except TimeoutError:
+                return JSONResponse({"error": "task_timeout"}, status_code=504)
+            except ModelUnavailable:
+                return JSONResponse({"error": "unavailable"}, status_code=503)
+            except Exception as error:
+                logger.error("event=udip_task_failed error_type=%s", type(error).__name__)
+                return JSONResponse({"error": "unavailable"}, status_code=503)
+
+    @app.post("/v1/tasks/udip/pii")
+    async def pii(task: UdipPiiRequest):
+        result = await infer(detect_pii, task.text)
+        return {"suggestions": result} if isinstance(result, list) else result
+
+    @app.post("/v1/tasks/udip/ocr")
+    async def ocr(task: UdipOcrRequest):
+        return await infer(read_pdf_scan, task.content_base64)
 
     return app

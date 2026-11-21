@@ -2,7 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import { udipMaxTextChars } from "../../schemas/udip.ts";
 
-export async function readUdipBody(request: Request, maxBytes: number) {
+export async function readUdipBody(request: Pick<Request, "body" | "headers">, maxBytes: number) {
   if (Number(request.headers.get("content-length")) > maxBytes) return { status: "tooLarge" } as const;
   const reader = request.body?.getReader();
   if (!reader) return { status: "invalid" } as const;

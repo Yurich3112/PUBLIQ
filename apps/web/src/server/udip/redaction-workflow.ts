@@ -6,6 +6,7 @@ import { getDatabase } from "../database.ts";
 import type { UdipActor } from "./access.ts";
 import { applyUdipRedactions, suggestUdipRedactions } from "./redaction.ts";
 import { lockUdipCase } from "./scope.ts";
+import { detectUdipPii } from "./worker.ts";
 
 type Target = { kind: "intake"; documentUuid: string } | { kind: "draft" };
 const selectionFields = {
@@ -24,7 +25,7 @@ type Snapshot = {
 
 async function readSnapshot(tx: Prisma.TransactionClient, caseUuid: string, target: Target) {
   if (target.kind === "intake") {
-    const row = await tx.udipDocument.findFirst({ where: { uuid: target.documentUuid, caseUuid, kind: "request" }, select: {
+    const row = await tx.udipDocument.findFirst({ where: { uuid: target.documentUuid, caseUuid }, select: {
       uuid: true, extractedText: true, textRevision: true, status: true, redactions: newestSelection,
     } });
     if (!row) return { status: "missing" } as const;
@@ -69,10 +70,38 @@ async function withRedactionCase<T>(actor: UdipActor, caseUuid: string,
   });
 }
 
-export function readUdipRedaction(actor: UdipActor, caseUuid: string, target: Target) {
-  return withRedactionCase(actor, caseUuid, async tx => {
+export async function readUdipRedaction(actor: UdipActor, caseUuid: string, target: Target) {
+  const loaded = await withRedactionCase(actor, caseUuid, async tx => {
     const loaded = await readSnapshot(tx, caseUuid, target);
     return loaded.status === "ok" ? { status: "ok" as const, state: redactionState(loaded.snapshot) } : loaded;
+  });
+  if (loaded.status !== "ok") return loaded;
+  const { state } = loaded;
+  const suggestions = await detectUdipPii(state.text);
+  state.suggestions.push(...suggestions.filter(({ range }) => applyUdipRedactions(state.text, [range]) !== null));
+  state.suggestions.sort((a, b) => a.range[0] - b.range[0] || a.range[1] - b.range[1]);
+  return loaded;
+}
+
+export function readConfirmedUdipSources(actor: UdipActor, caseUuid: string, kind: "request" | "departmentReply",
+  sources: readonly { documentId: string; revision: string }[]) {
+  return withRedactionCase(actor, caseUuid, async tx => {
+    const rows = await tx.udipDocument.findMany({ where: { caseUuid, kind, uuid: { in: sources.map(source => source.documentId) } },
+      select: { uuid: true, extractedText: true, status: true, textRevision: true, redactions: newestSelection } });
+    const result = new Map<string, string>();
+    for (const source of sources) {
+      const row = rows.find(item => item.uuid === source.documentId);
+      if (!row) return { status: "missing" } as const;
+      if (row.status !== "ready" || row.extractedText === null) return { status: "conflict" } as const;
+      const snapshot: Snapshot = {
+        target: { kind: "intake", documentUuid: row.uuid }, uuid: row.uuid, text: row.extractedText,
+        sourceRevision: row.textRevision, authorUuid: null, latest: row.redactions[0],
+      };
+      const selection = currentSelection(snapshot);
+      if (!selection || snapshotRevision(snapshot) !== source.revision) return { status: "conflict" } as const;
+      result.set(row.uuid, selection.sanitizedText);
+    }
+    return { status: "ok" as const, sources: result };
   });
 }
 

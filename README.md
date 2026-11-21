@@ -212,8 +212,32 @@ instructions to reassemble the GGUF and verify its SHA-256 checksum.
 
 Once downloaded and reassembled, the model runs offline with `llama-server`.
 Local inference was verified at `http://127.0.0.1:8080/v1/chat/completions`.
-The existing application chat still uses OpenAI while the backend integration is
-being developed.
+UDIP uses its own local client. In `apps/web/.env`, set
+`UDIP_PLLUM_URL=http://127.0.0.1:8080`, `UDIP_PLLUM_MODEL=pllum` and optionally
+`UDIP_PLLUM_TIMEOUT_MS=75000`. Run the model in a separate terminal:
+
+```powershell
+llama-server --model 'C:\path\to\pllum.gguf' --alias pllum --host 127.0.0.1 --port 8080 --ctx-size 16384
+```
+
+The application chat uses its existing OpenAI configuration.
+
+## Local UDIP PII and OCR
+
+Use Python 3.12 for the optional inference environment. From the repository root:
+
+```powershell
+pnpm pyworker:setup
+.\apps\pyworker\.venv\Scripts\python.exe -m pip install -r apps/pyworker/requirements-udip.txt
+```
+
+In `apps/pyworker/.env`, set `UDIP_PII_MODEL_DIR` to the absolute path of the
+[pinned PII-Tracer checkout](docs/UDIP_COMPLETE_IDEA.md#download-pii-tracer-for-local-development).
+For Polish OCR, extract the official
+[PP-OCRv5_server_det and latin_PP-OCRv5_mobile_rec inference models](https://www.paddleocr.ai/v3.4.1/en/version3.x/pipeline_usage/OCR.html)
+and set `UDIP_OCR_DET_MODEL_DIR` and `UDIP_OCR_REC_MODEL_DIR` to those local directories.
+Then run `pnpm pyworker:dev` and exercise the API in order using the
+[Stage 5 contracts](openspec/changes/establish-udip-backend-contract/design.md#stage-5-local-models).
 
 ## Current acceptance scope
 

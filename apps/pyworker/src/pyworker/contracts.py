@@ -18,3 +18,13 @@ class CheckResponse(BaseModel):
     job_id: UUID
     attempt: int
     checksum: str
+
+
+class UdipPiiRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    text: Annotated[str, Field(min_length=1, max_length=260_000)]
+
+
+class UdipOcrRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    content_base64: Annotated[str, Field(min_length=4, max_length=13_981_016)]
