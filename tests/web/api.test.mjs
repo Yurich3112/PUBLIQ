@@ -7,6 +7,31 @@ import { readOpenAiReply, streamOpenAiChat } from '../../apps/web/src/server/ope
 import { udipCaseListQuerySchema, udipMaxFileBytes } from '../../apps/web/src/schemas/udip.ts';
 import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
 import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
+import { applyUdipRedactions, suggestUdipRedactions } from '../../apps/web/src/server/udip/redaction.ts';
+
+test('UDIP redaction removes selected occurrences and merges overlapping UTF-16 ranges after emoji', () => {
+  const address = 'kontakt@example.org';
+  const text = `\u{1F600} ${address} / ${address} / SECRET`;
+  const first = text.indexOf(address);
+  const custom = text.indexOf('SECRET');
+  const suggestions = suggestUdipRedactions(text);
+  assert.equal(first, 3);
+  assert.deepEqual(suggestions.filter(item => item.kind === 'email').map(item => text.slice(...item.range)), [address, address]);
+  assert.deepEqual(applyUdipRedactions(text, [[custom, text.length], [first + 3, first + address.length], [first, first + 5]]), {
+    ranges: [[first, first + address.length], [custom, text.length]], text: `\u{1F600}  / ${address} / `,
+  });
+  assert.equal(applyUdipRedactions(text, [[1, 2]]), null);
+  assert.equal(applyUdipRedactions(text, [[0, 1]]), null);
+  assert.equal(applyUdipRedactions(text, [[0, text.length + 1]]), null);
+});
+
+test('UDIP rule suggestions are separate from confirmed redactions', () => {
+  const text = 'PESEL 02070803628. E-mail kontakt@example.org. Telefon +48 123 456 789.';
+  assert.deepEqual(suggestUdipRedactions(text).map(({ kind, range }) => [kind, text.slice(...range)]), [
+    ['pesel', '02070803628'], ['email', 'kontakt@example.org'], ['phone', '+48 123 456 789'],
+  ]);
+  assert.deepEqual(applyUdipRedactions(text, []), { ranges: [], text });
+});
 
 function udipUpload({ dates = ['2026-11-21', '2026-12-05'], name = 'wniosek.pdf', bytes = '%PDF-1.7\n', duplicate = false } = {}) {
   const form = new FormData();

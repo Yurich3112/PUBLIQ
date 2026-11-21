@@ -77,6 +77,9 @@ model User {
   udipDocuments      UdipDocument[]
   udipAssignments    UdipDepartmentAssignment[]
   udipDraftVersions  UdipDraftVersion[]
+  createdUdipRedactions UdipRedactionRevision[] @relation("UdipRedactionAuthor")
+  approvedUdipRedactions UdipRedactionRevision[] @relation("UdipRedactionApprover")
+  sentUdipCases      UdipCase[] @relation("UdipDispatchActor")
 
   @@map("user")
 }
@@ -125,6 +128,11 @@ model UdipCase {
   documents       UdipDocument[]
   assignments     UdipDepartmentAssignment[]
   draftVersions   UdipDraftVersion[]
+  sentDate        DateTime?                  @map("sent_date") @db.Date
+  sentByUuid      String?                    @map("sent_by_uuid") @db.Uuid
+  sentRedactionUuid String?                  @unique @map("sent_redaction_uuid") @db.Uuid
+  sentBy          User?                      @relation("UdipDispatchActor", fields: [sentByUuid], references: [uuid], onDelete: Restrict)
+  sentRedaction   UdipRedactionRevision?      @relation(fields: [sentRedactionUuid], references: [uuid], onDelete: Restrict)
 
   @@unique([ownerUuid, clientRequestId])
   @@index([year, receivedDate, uuid])
@@ -166,11 +174,13 @@ model UdipDocument {
   clientRequestId String?                  @map("client_request_id") @db.Uuid
   requestHash    String?                   @map("request_hash") @db.Char(64)
   extractedText  String?                   @map("extracted_text")
+  textRevision   Int                       @default(0) @map("text_revision")
   createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   case           UdipCase                  @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
   assignment     UdipDepartmentAssignment? @relation(fields: [caseUuid, assignmentUuid], references: [caseUuid, uuid], onDelete: Restrict)
   uploadedBy     User                      @relation(fields: [uploadedByUuid], references: [uuid], onDelete: Restrict)
   fileVersion    FileVersion?              @relation(fields: [fileVersionUuid], references: [uuid], onDelete: Restrict)
+  redactions     UdipRedactionRevision[]
 
   @@unique([caseUuid, uploadedByUuid, clientRequestId], map: "udip_document_reply_request_key")
   @@index([caseUuid, createdAt, uuid])
@@ -188,9 +198,33 @@ model UdipDraftVersion {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   case          UdipCase @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
   createdBy     User     @relation(fields: [createdByUuid], references: [uuid], onDelete: Restrict)
+  redactions    UdipRedactionRevision[]
 
   @@unique([caseUuid, version])
   @@map("udip_draft_version")
+}
+
+model UdipRedactionRevision {
+  uuid          String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  documentUuid  String?           @map("document_uuid") @db.Uuid
+  draftUuid     String?           @map("draft_uuid") @db.Uuid
+  version       Int
+  sourceRevision Int?             @map("source_revision")
+  ranges        Json
+  sanitizedText String            @map("sanitized_text")
+  createdByUuid String            @map("created_by_uuid") @db.Uuid
+  approvedByUuid String?          @map("approved_by_uuid") @db.Uuid
+  approvedAt    DateTime?         @map("approved_at") @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  document      UdipDocument?     @relation(fields: [documentUuid], references: [uuid], onDelete: Restrict)
+  draft         UdipDraftVersion? @relation(fields: [draftUuid], references: [uuid], onDelete: Restrict)
+  createdBy     User              @relation("UdipRedactionAuthor", fields: [createdByUuid], references: [uuid], onDelete: Restrict)
+  approvedBy    User?             @relation("UdipRedactionApprover", fields: [approvedByUuid], references: [uuid], onDelete: Restrict)
+  sentCase      UdipCase?
+
+  @@unique([documentUuid, version])
+  @@unique([draftUuid, version])
+  @@map("udip_redaction_revision")
 }
 
 enum ChatMode {

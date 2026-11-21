@@ -23,7 +23,12 @@ export const API_ROUTES = {
     departmentReplies: `${API_BASE_PATH}/udip/cases/{caseId}/assignments/{assignmentId}/documents`,
     document: `${API_BASE_PATH}/udip/cases/{caseId}/documents/{documentId}`,
     documentOriginal: `${API_BASE_PATH}/udip/cases/{caseId}/documents/{documentId}/original`,
+    intakeRedaction: `${API_BASE_PATH}/udip/cases/{caseId}/documents/{documentId}/redaction`,
     drafts: `${API_BASE_PATH}/udip/cases/{caseId}/drafts`,
+    draftRedaction: `${API_BASE_PATH}/udip/cases/{caseId}/drafts/redaction`,
+    draftApproval: `${API_BASE_PATH}/udip/cases/{caseId}/drafts/approval`,
+    draftExport: `${API_BASE_PATH}/udip/cases/{caseId}/drafts/export`,
+    dispatch: `${API_BASE_PATH}/udip/cases/{caseId}/dispatch`,
   },
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,

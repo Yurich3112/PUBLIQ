@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { udipDraftPointSchema, type udipDraftEditSchema, type udipDraftGenerateSchema, type UdipDraftPoint, type UdipDraftVersion } from "../../schemas/udip.ts";
 import { getDatabase } from "../database.ts";
 import type { UdipActor } from "./access.ts";
-import { caseScope } from "./scope.ts";
+import { caseScope, lockUdipCase } from "./scope.ts";
 
 type DraftInput = z.infer<typeof udipDraftGenerateSchema> | z.infer<typeof udipDraftEditSchema>;
 const draftFields = { uuid: true, version: true, text: true, points: true, createdAt: true } as const;
@@ -28,7 +28,7 @@ export async function saveUdipDraft(actor: UdipActor, caseUuid: string, input: D
   const db = getDatabase();
   try {
     return await db.$transaction(async tx => {
-      const record = await tx.udipCase.findFirst({ where: { ...caseScope(actor), uuid: caseUuid }, select: { signature: true, subject: true } });
+      const record = await lockUdipCase(tx, actor, caseUuid);
       if (!record) return { status: "missing" as const };
       const latest = await tx.udipDraftVersion.findFirst({ where: { caseUuid }, orderBy: { version: "desc" }, select: { version: true } });
       const currentVersion = latest?.version ?? 0;

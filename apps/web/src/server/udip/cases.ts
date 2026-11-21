@@ -9,7 +9,7 @@ import { caseScope } from "./scope.ts";
 import type { UdipUpload } from "./upload.ts";
 
 const caseFields = {
-  uuid: true, signature: true, applicantName: true, subject: true, receivedDate: true, dueDate: true, status: true,
+  uuid: true, signature: true, applicantName: true, subject: true, receivedDate: true, dueDate: true, status: true, sentDate: true,
 } as const;
 const registeredCaseFields = {
   ...caseFields,
@@ -32,6 +32,7 @@ function caseSummary(row: Prisma.UdipCaseGetPayload<{ select: typeof caseFields 
     id: row.uuid, signature: row.signature, applicantName: row.applicantName, subject: row.subject,
     receivedDate: row.receivedDate.toISOString().slice(0, 10), dueDate: row.dueDate.toISOString().slice(0, 10),
     daysRemaining: (row.dueDate.getTime() - Date.parse(today)) / dayMs, processStatus: row.status,
+    sentDate: row.sentDate?.toISOString().slice(0, 10) ?? null,
   };
 }
 

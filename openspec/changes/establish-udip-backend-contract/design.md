@@ -66,6 +66,22 @@ New originals are linked to an immutable Modulon file version in S3/SeaweedFS. T
 
 Template generation uses only readable department replies in the same case. A point without usable replies shows `Brak materiału`. Existing replies are cited by document ID. Draft retrieval returns the working version for review. Final approved TXT export remains a later step.
 
+### Stage 3 API for redaction, approval and dispatch
+
+The routes share `/api/v1/udip/cases/{caseId}`. The session and case scope apply to every route.
+
+| Method and path | Contract |
+| --- | --- |
+| `GET/PATCH /documents/{documentId}/redaction` | Read the current intake review. PATCH accepts `{ revision, ranges }` and saves the sanitized intake copy for later PLLuM processing. |
+| `GET/PATCH /drafts/redaction` | Read or save review ranges for the latest draft using the same payload. An empty array confirms the review with no removals. |
+| `POST /drafts/approval` | Accept `{ revision }`. The approver needs the existing administrative role and must be a different user from the draft author and the redaction submitter. |
+| `GET /drafts/export?revision=...` | Download a fresh UTF-8 TXT only when that revision is current and approved. |
+| `POST /dispatch` | Accept `{ revision, sentDate }` to record actual sending for the approved revision and move the case to `E`. |
+
+Review responses include the exact working text, suggestions, the current revision, selected ranges, sanitized text and approval time. Ranges are half-open UTF-16 offsets `[start, end)`. PATCH supplies the complete selection. Omit a suggestion to leave that occurrence unchanged and add manual ranges in the same array. The backend validates bounds, rejects offsets inside surrogate pairs and merges overlaps. Invalid ranges return `400`. Stale revisions and unapproved exports return `409`.
+
+The approval is bound to the latest draft version and selected ranges. A text or range change requires a separate approval. The export removes characters from the underlying text and leaves unrelated occurrences intact. It does not record dispatch. Stage 3 uses local deterministic rules for PESEL-like numbers, email and Polish phone formats. PII-Tracer and PLLuM calls remain separate integrations.
+
 ### Knowledge base and manual fallback
 
 - Administrators upload acts and archived replies. Store original source and version metadata, validated anonymized matching content, proposed cluster and similar record links. The admin graph can show pending placement. Matching reads only approved anonymized versions.

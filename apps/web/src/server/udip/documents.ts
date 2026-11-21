@@ -6,7 +6,7 @@ import { getDatabase } from "../database.ts";
 import { getFileStore } from "../files.ts";
 import type { UdipActor } from "./access.ts";
 import { extractUdipText } from "./extraction.ts";
-import { caseScope } from "./scope.ts";
+import { caseScope, lockUdipCase } from "./scope.ts";
 import type { UdipFile } from "./upload.ts";
 
 export const documentFields = {
@@ -58,7 +58,7 @@ export async function finishUdipExtraction(document: UdipDocumentSummary, file: 
   const db = getDatabase();
   const [updated] = await db.udipDocument.updateManyAndReturn({
     where: { uuid: document.id, status: "pending" },
-    data: { extractedText, status: extractedText ? "ready" : "failed" }, select: documentFields,
+    data: { extractedText, textRevision: { increment: 1 }, status: extractedText ? "ready" : "failed" }, select: documentFields,
   });
   const current = updated ?? await db.udipDocument.findUnique({ where: { uuid: document.id }, select: documentFields });
   return current ? documentSummary(current) : document;
@@ -129,8 +129,12 @@ export async function readUdipDocument(actor: UdipActor, caseUuid: string, uuid:
 }
 
 export async function saveUdipTranscription(actor: UdipActor, caseUuid: string, uuid: string, extractedText: string) {
-  const [row] = await getDatabase().udipDocument.updateManyAndReturn({
-    where: scopedDocument(actor, caseUuid, uuid), data: { extractedText, status: "ready" }, select: documentDetailFields,
+  const row = await getDatabase().$transaction(async tx => {
+    if (!await lockUdipCase(tx, actor, caseUuid)) return null;
+    const [saved] = await tx.udipDocument.updateManyAndReturn({
+      where: { uuid, caseUuid }, data: { extractedText, textRevision: { increment: 1 }, status: "ready" }, select: documentDetailFields,
+    });
+    return saved;
   });
   if (!row) return null;
   const { extractedText: text, ...fields } = row;

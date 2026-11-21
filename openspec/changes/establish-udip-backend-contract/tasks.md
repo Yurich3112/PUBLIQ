@@ -10,6 +10,7 @@
 
 ## 2. Anonymization, summary and routing
 
+- [x] 2.0 Save clerk-selected UTF-16 intake ranges using manual and rule-based suggestions. Verify duplicate occurrences, overlap, emoji and stale transcription revisions.
 - [ ] 2.1 Connect PII-Tracer intake suggestions and clerk editing. Check false positives and missed ranges on permitted project documents and check that only confirmed sanitized text reaches PLLuM.
 - [ ] 2.2 Add local JSON summaries and manual summaries using the same schema. Test malformed model output, multiple questions and periods.
 - [ ] 2.3 Add TypeScript ranking of PostgreSQL knowledge records and clerk confirmation. Test different destinations in the same request and inspect the bounded context sent to PLLuM.
@@ -19,8 +20,8 @@
 ## 3. Versioned letters and TXT
 
 - [x] 3.1 Generate template drafts from current case replies and preserve each version. Verify source IDs, missing material and concurrent stale writes.
-- [ ] 3.2 Run final PII review, supervisor approval and clean TXT export. Test stale approval after an edit and verify removed values are absent from raw TXT bytes.
-- [ ] 3.3 Record actual dispatch date independently. Test that exporting a draft leaves the case unsent.
+- [x] 3.2 Run final rule-based and manual PII review, supervisor approval and clean TXT export. Test stale approval after text or range changes and verify removed values are absent from TXT bytes.
+- [x] 3.3 Record actual dispatch date independently. Test that exporting a draft leaves the case unsent.
 - [ ] 3.4 Surface conflicting replies and allow archived letters as templates for form only.
 
 ## 4. Administrator knowledge base and integration

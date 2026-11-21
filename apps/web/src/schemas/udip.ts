@@ -32,6 +32,7 @@ export const udipCaseSummarySchema = z.object({
   dueDate: calendarDate,
   daysRemaining: z.int(),
   processStatus: udipCaseStatusSchema,
+  sentDate: calendarDate.nullable(),
 });
 
 export const udipDocumentSummarySchema = z.object({
@@ -97,6 +98,22 @@ export const udipDraftVersionSchema = z.object({
   points: z.array(udipDraftPointSchema).nullable(), createdAt: z.iso.datetime(),
 });
 
+export const udipRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const redactionOffset = z.int().nonnegative();
+export const udipRedactionRangeSchema = z.tuple([redactionOffset, redactionOffset]).refine(([start, end]) => start < end);
+export const udipRedactionRangesSchema = z.array(udipRedactionRangeSchema).max(2000);
+export const udipRedactionInputSchema = z.object({ revision: udipRevisionSchema, ranges: udipRedactionRangesSchema }).strict();
+export const udipApprovalInputSchema = z.object({ revision: udipRevisionSchema }).strict();
+export const udipDispatchInputSchema = udipApprovalInputSchema.extend({ sentDate: calendarDate });
+export const udipRedactionStateSchema = z.object({
+  revision: udipRevisionSchema,
+  text: z.string(),
+  suggestions: z.array(z.object({ kind: z.enum(["pesel", "email", "phone"]), range: udipRedactionRangeSchema })),
+  ranges: udipRedactionRangesSchema.nullable(),
+  sanitizedText: z.string().nullable(),
+  approvedAt: z.iso.datetime().nullable(),
+});
+
 export const udipErrorSchema = z.object({ status: z.enum([
   "invalid", "unauthenticated", "denied", "missing", "conflict", "tooLarge", "unsupportedMediaType", "timeout", "unavailable",
 ]), currentVersion: z.int().nonnegative().optional() });
@@ -110,4 +127,6 @@ export type UdipCaseDetail = z.infer<typeof udipCaseDetailSchema>;
 export type UdipDocumentSummary = z.infer<typeof udipDocumentSummarySchema>;
 export type UdipDraftPoint = z.infer<typeof udipDraftPointSchema>;
 export type UdipDraftVersion = z.infer<typeof udipDraftVersionSchema>;
+export type UdipRedactionRange = z.infer<typeof udipRedactionRangeSchema>;
+export type UdipRedactionState = z.infer<typeof udipRedactionStateSchema>;
 export type UdipError = z.infer<typeof udipErrorSchema>["status"];
