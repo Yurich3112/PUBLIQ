@@ -1,6 +1,6 @@
-export type NavigationIcon = "home" | "about" | "team" | "chat" | "ocr" | "admin" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
-export type NavigationHref = "/" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/ocr" | "/admin" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
-export type NavigationLabel = "home" | "about" | "team" | "chat" | "ocr" | "llm" | "admin" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
+export type NavigationIcon = "home" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
+export type NavigationHref = "/" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/ocr" | "/admin" | "/admin/knowledge" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
+export type NavigationLabel = "home" | "about" | "team" | "chat" | "ocr" | "llm" | "admin" | "knowledge" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
 export type NavigationItem = { href: NavigationHref; label: NavigationLabel; icon: NavigationIcon; exact?: boolean };
 
 const home: NavigationItem = { href: "/", label: "home", icon: "home", exact: true };
@@ -41,6 +41,7 @@ export function secondaryNavigation(pathname: string, allowAdmin: boolean): { la
   if (allowAdmin && navigationActive(path, admin)) return {
     label: "adminNavigation", items: [
       { href: "/admin", label: "overview", icon: "admin", exact: true },
+      { href: "/admin/knowledge", label: "knowledge", icon: "knowledge", exact: true },
       { href: "/admin/monitoring", label: "monitoring", icon: "monitoring", exact: true },
       { href: "/admin/users", label: "users", icon: "user", exact: true },
       { href: "/admin/files", label: "files", icon: "files", exact: true },
@@ -59,7 +60,7 @@ export function secondaryNavigation(pathname: string, allowAdmin: boolean): { la
   return null;
 }
 
-export type BreadcrumbRoute = { label: "home" | "about" | "team" | "chat" | "ocr" | "admin" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/about" | "/chat" | "/ocr" | "/admin" | "/test" | "/admin/products" };
+export type BreadcrumbRoute = { label: "home" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/about" | "/chat" | "/ocr" | "/admin" | "/test" | "/admin/products" };
 export function pageBreadcrumbs(pathname: string): BreadcrumbRoute[] {
   const path = normalizeNavigationPath(pathname);
   if (path === "/chat") return [{ label: "home", href: "/" }, { label: "chat" }];
@@ -67,6 +68,7 @@ export function pageBreadcrumbs(pathname: string): BreadcrumbRoute[] {
   if (path === "/chat/settings") return [{ label: "home", href: "/" }, { label: "chat", href: "/chat" }, { label: "llm" }];
   if (path === "/about") return [{ label: "home", href: "/" }, { label: "about" }];
   if (path === "/about/team") return [{ label: "home", href: "/" }, { label: "about", href: "/about" }, { label: "team" }];
+  if (path === '/admin/knowledge') return [{ label: 'home', href: '/' }, { label: 'admin', href: '/admin' }, { label: 'knowledge' }];
   if (path === '/admin/monitoring') return [{ label: 'home', href: '/' }, { label: 'admin', href: '/admin' }, { label: 'monitoring' }];
   if (path === "/admin/products/create") return [
     { label: "home", href: "/" }, { label: "admin", href: "/admin" }, { label: "products", href: "/admin/products" }, { label: "createProduct" },

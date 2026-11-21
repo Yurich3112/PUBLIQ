@@ -107,7 +107,7 @@ flowchart TD
 | **4. `BAZA WIEDZY` + `InstitutionRegistry` + `ResponseTemplateArchive`** | DB + Backend Devs | ✅ **DONE** | `kb_cluster`, `kb_node`, `kb_edge`, `institution_registry` (11 units JSON), `response_template_archive` (7 PDFs), `/api/v1/knowledge/*`, `/api/v1/admin/knowledge/*` |
 | **5. Frontend Calendar & Table UI (`5 Green / 5 Red`)** | Frontend Dev | 🚧 **IN PROGRESS** | Consumes `/api/v1/cases` & `/api/v1/udip/cases`, expandable per-department 🔴/🟢 rows (`1 z 2 odpowiedzi`), inline email paste / PDF upload |
 | **6. Case Workspace & Anonymizer Review UI** | Frontend Dev | 🚧 **IN PROGRESS** | Base pages started at `/[locale]/udip/cases/[caseId]` + `transcription-review.tsx`; wire Grey ➡️ Black `PII-Tracer` review & side-by-side draft comparison |
-| **7. Admin Panel Graph Visualizer UI** | Frontend / Admin | ⬜ **TODO** | Admin-only UI calling `/api/v1/admin/knowledge/graph` & `/ingest` to upload new documents and visualize where they land |
+| **7. Admin Panel Graph Visualizer UI** | OCR / DB Dev | ✅ **DONE** | Admin-only `/pl/admin/knowledge` (`requireAdminAccess`) calling `/api/v1/admin/knowledge/graph` & `/ingest` with pulsing placement highlight & 3 jury demo presets |
 
 ---
 

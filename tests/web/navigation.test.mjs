@@ -17,7 +17,7 @@ test('navigation visibility keeps administration behind the server role decision
   assert.equal(secondaryNavigation('/administrator', true), null);
   assert.equal(secondaryNavigation('/admin/', true).items[0].href, '/admin');
   assert.equal(secondaryNavigation('/admin/users', false), null);
-  assert.deepEqual(secondaryNavigation('/admin/users', true).items.map(item => item.href), ['/admin', '/admin/monitoring', '/admin/users', '/admin/files', '/admin/products', '/admin/tags', '/admin/queue', '/admin/settings']);
+  assert.deepEqual(secondaryNavigation('/admin/users', true).items.map(item => item.href), ['/admin', '/admin/knowledge', '/admin/monitoring', '/admin/users', '/admin/files', '/admin/products', '/admin/tags', '/admin/queue', '/admin/settings']);
   assert.equal(secondaryNavigation('/admin/files', false), null);
   assert.equal(navigationActive('/admin/users', secondaryNavigation('/admin/users', true).items[0]), false);
   assert.equal(navigationActive('/admin/users', secondaryNavigation('/admin/users', true).items.find(item => item.href === '/admin/users')), true);
