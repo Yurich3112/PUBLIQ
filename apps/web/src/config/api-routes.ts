@@ -25,6 +25,7 @@ export const API_ROUTES = {
   knowledgeTemplates: `${API_BASE_PATH}/knowledge/templates`,
   adminKnowledgeGraph: `${API_BASE_PATH}/admin/knowledge/graph`,
   adminKnowledgeIngest: `${API_BASE_PATH}/admin/knowledge/ingest`,
+  adminKnowledgeUpload: `${API_BASE_PATH}/admin/knowledge/upload`,
   udip: {
     cases: `${API_BASE_PATH}/udip/cases`,
     caseDetail: `${API_BASE_PATH}/udip/cases/{caseId}`,
