@@ -62,6 +62,42 @@
       "copyText": "Copy confirmed text",
       "copied": "Copied"
     },
+    "recommendation": {
+      "title": "Knowledge Base Recommendation (4 UDIP Scenarios) & Save to Calendar",
+      "matching": "Matching against Knowledge Base and Institution Registry…",
+      "matchFailed": "Could not fetch Knowledge Base recommendation. You can still save the case manually.",
+      "latency": "Match latency: {ms} ms",
+      "twinCase": "Twin archival case",
+      "similarity": "match",
+      "previewTemplate": "Preview template",
+      "hideTemplate": "Hide template",
+      "copyTemplate": "Copy reference draft",
+      "departmentsLabel": "Suggested UM Bydgoszcz departments (confirm to track replies)",
+      "applicantLabel": "Applicant",
+      "subjectLabel": "Request subject (for Calendar table)",
+      "saveToCalendar": "Save Case to Calendar (SPRAWY DB)",
+      "saving": "Saving case…",
+      "saveFailed": "Could not save the case to the database. Please try again.",
+      "savedSuccess": "Registered case {caseNumber} in Calendar (statutory deadline: {deadline})",
+      "scenarios": {
+        "OUR_OFFICE_NEW": {
+          "title": "Scenario 1: New topic for BKS — no twin case in archive",
+          "hint": "Clerk analyzes the request with local AI assistance and saves the case to the calendar."
+        },
+        "OUR_OFFICE_SIMILAR_FOUND": {
+          "title": "Scenario 2: Similar case found in Knowledge Base",
+          "hint": "Use the archived reference response template below as the basis for your draft reply."
+        },
+        "EXTERNAL_INSTITUTION": {
+          "title": "Scenario 3: External authority — UM Bydgoszcz is not data holder (Art. 4(3) UDIP)",
+          "hint": "Copy the suggested redirect draft (sent outside the app) and register the case in the calendar."
+        },
+        "OTHER_INTERNAL_DEPARTMENT": {
+          "title": "Scenario 4: Requires input from other UM Bydgoszcz department(s)",
+          "hint": "Confirm the suggested departments below and save — the calendar tracks 🔴 Pending / 🟢 Replied statuses."
+        }
+      }
+    },
     "clarification": {
       "title": "7-Day Request Clarification Notice",
       "subtitle": "Ready-to-edit BKS UM Bydgoszcz clarification draft for illegible scans.",

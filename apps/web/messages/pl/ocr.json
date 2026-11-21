@@ -62,6 +62,42 @@
       "copyText": "Kopiuj zatwierdzony tekst",
       "copied": "Skopiowano"
     },
+    "recommendation": {
+      "title": "Rekomendacja Bazy Wiedzy (4 scenariusze UDIP) i zapis do Kalendarza",
+      "matching": "Porównywanie z Bazą Wiedzy i rejestrem instytucji…",
+      "matchFailed": "Nie udało się pobrać rekomendacji z Bazy Wiedzy. Możesz nadal zapisać sprawę ręcznie.",
+      "latency": "Czas dopasowania: {ms} ms",
+      "twinCase": "Bliźniacza sprawa z archiwum",
+      "similarity": "zgodności",
+      "previewTemplate": "Podgląd szablonu",
+      "hideTemplate": "Ukryj szablon",
+      "copyTemplate": "Kopiuj wzór odpowiedzi",
+      "departmentsLabel": "Sugerowane wydziały UM Bydgoszcz (zaznacz do wysłania zapytań)",
+      "applicantLabel": "Wnioskodawca",
+      "subjectLabel": "Przedmiot zapytania (do Kalendarza)",
+      "saveToCalendar": "Zapisz sprawę w Kalendarzu (SPRAWY DB)",
+      "saving": "Zapisywanie sprawy…",
+      "saveFailed": "Nie udało się zapisać sprawy w bazie danych. Spróbuj ponownie.",
+      "savedSuccess": "Zarejestrowano sprawę {caseNumber} w Kalendarzu (termin odpowiedzi: {deadline})",
+      "scenarios": {
+        "OUR_OFFICE_NEW": {
+          "title": "Scenariusz 1: Nowy temat w BKS — brak podobnej sprawy w archiwum",
+          "hint": "Urzędnik prowadzi oryginalną analizę z pomocą lokalnego modelu AI i zapisuje sprawę w kalendarzu."
+        },
+        "OUR_OFFICE_SIMILAR_FOUND": {
+          "title": "Scenariusz 2: Znaleziono podobną sprawę w Bazie Wiedzy",
+          "hint": "Możesz wykorzystać załączony poniżej archiwalny wzór odpowiedzi jako bazę projektu pisma do walidacji."
+        },
+        "EXTERNAL_INSTITUTION": {
+          "title": "Scenariusz 3: Brak dysponenta — właściwa instytucja zewnętrzna (Art. 4 ust. 3 UDIP)",
+          "hint": "Skopiuj gotowy projekt pisma przekierowującego (wysyłka poza aplikacją) i zarejestruj sprawę w kalendarzu."
+        },
+        "OTHER_INTERNAL_DEPARTMENT": {
+          "title": "Scenariusz 4: Wymagane dane z innego wydziału / kilku wydziałów UM Bydgoszcz",
+          "hint": "Potwierdź sugerowane wydziały poniżej i zapisz sprawę — w kalendarzu pojawią się statusy 🔴 Oczekujemy / 🟢 Odpowiedź."
+        }
+      }
+    },
     "clarification": {
       "title": "Wezwanie do uzupełnienia / doprecyzowania wniosku (7 dni)",
       "subtitle": "Gotowy projekt pisma BKS UM Bydgoszczy dla nieczytelnego skanu.",

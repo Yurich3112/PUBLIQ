@@ -22,6 +22,10 @@ import {
 import { Button, Input, Throbber } from "@/ui/basic";
 import { ClarificationDraftModal } from "./clarification-draft-modal";
 import {
+  KnowledgeRecommendationCard,
+  type KnowledgeMatchResponse,
+} from "./knowledge-recommendation-card";
+import {
   assembleVerifiedBodyText,
   buildClarificationNoticeDraft,
   buildVerifiedPayload,
@@ -55,6 +59,9 @@ export function OcrSplitVerifier({
   const [verifiedPayload, setVerifiedPayload] = useState<VerifiedOcrPayload | null>(null);
   const [copiedVerified, setCopiedVerified] = useState(false);
   const [clarificationOpen, setClarificationOpen] = useState(false);
+  const [matchingKb, setMatchingKb] = useState(false);
+  const [matchError, setMatchError] = useState(false);
+  const [matchResult, setMatchResult] = useState<KnowledgeMatchResponse | null>(null);
 
   async function handleFileUpload(file: File) {
     setErrorCode(null);
@@ -149,7 +156,7 @@ export function OcrSplitVerifier({
     setVerifiedPayload(null);
   }
 
-  function handleConfirmVerification() {
+  async function handleConfirmVerification() {
     if (!analysis) return;
     const payload = buildVerifiedPayload({
       analysis,
@@ -159,7 +166,37 @@ export function OcrSplitVerifier({
       registryNumber: registryNumber || null,
     });
     setVerifiedPayload(payload);
+    setMatchResult(null);
+    setMatchError(false);
     onConfirm?.(payload);
+
+    if (payload.verifiedText.trim().length < 3) return;
+    setMatchingKb(true);
+    try {
+      const response = await fetch(API_ROUTES.knowledgeMatch, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          title: payload.fileName,
+          summary: payload.verifiedText,
+        }),
+      });
+      if (!response.ok) {
+        setMatchError(true);
+        return;
+      }
+      const json = (await response.json()) as KnowledgeMatchResponse;
+      if (json.status === "ok") {
+        setMatchResult(json);
+      } else {
+        setMatchError(true);
+      }
+    } catch {
+      setMatchError(true);
+    } finally {
+      setMatchingKb(false);
+    }
   }
 
   async function handleCopyVerifiedText() {
@@ -218,7 +255,7 @@ export function OcrSplitVerifier({
                 <ExclamationTriangleFill aria-hidden="true" className="size-4" />
                 {t("illegibleButton")}
               </Button>
-              <Button tone="primary" onClick={handleConfirmVerification}>
+              <Button tone="primary" onClick={() => void handleConfirmVerification()}>
                 <CheckCircle aria-hidden="true" className="size-4" />
                 {t("confirmButton")}
               </Button>
@@ -384,24 +421,34 @@ export function OcrSplitVerifier({
           </div>
 
           {verifiedPayload && (
-            <section
-              aria-label={t("verified.title")}
-              className="rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-                  <CheckCircle aria-hidden="true" className="size-4" />
-                  <span>{t("verified.title")}</span>
+            <>
+              <KnowledgeRecommendationCard
+                key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
+                verifiedPayload={verifiedPayload}
+                matching={matchingKb}
+                matchError={matchError}
+                matchResult={matchResult}
+              />
+
+              <section
+                aria-label={t("verified.title")}
+                className="rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                    <CheckCircle aria-hidden="true" className="size-4" />
+                    <span>{t("verified.title")}</span>
+                  </div>
+                  <Button size="sm" tone="main-outline" onClick={() => void handleCopyVerifiedText()}>
+                    <ClipboardCheck aria-hidden="true" className="size-3.5" />
+                    {copiedVerified ? t("verified.copied") : t("verified.copyText")}
+                  </Button>
                 </div>
-                <Button size="sm" tone="main-outline" onClick={() => void handleCopyVerifiedText()}>
-                  <ClipboardCheck aria-hidden="true" className="size-3.5" />
-                  {copiedVerified ? t("verified.copied") : t("verified.copyText")}
-                </Button>
-              </div>
-              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs">
-                {assembledPreview || verifiedPayload.verifiedText}
-              </pre>
-            </section>
+                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs">
+                  {assembledPreview || verifiedPayload.verifiedText}
+                </pre>
+              </section>
+            </>
           )}
         </>
       )}
