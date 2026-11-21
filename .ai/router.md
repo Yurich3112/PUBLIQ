@@ -12,6 +12,7 @@ konfigurację i działanie usług. Nie zapisuj tutaj sekretów ani danych sesji.
 
 - **[AGENTS.md — Instrukcje dla agentów, OpenSpec i Skillpack](../AGENTS.md)**
 - **[Pełna specyfikacja rozwiązania HackNation 2026: Inteligentny Asystent Urzędnika UDIP (UM Bydgoszcz)](../docs/UDIP_COMPLETE_IDEA.md)**
+- **Handwritten OCR Verifier (`handwritten-ocr-verifier`, 2026-11-21):** Lokalny 5-etapowy potok OCR (`apps/pyworker` `POST /v1/tasks/ocr`: Stage 0 PDF/PNG/JPEG + fast-path, Stage 1 OpenCV Grid Eraser, Stage 2 ONNX DBNet/word detector + line/zone grouper, Stage 3 lokalna Ollama `qwen2.5vl:3b`, Stage 4 mapowanie 1:1 + parser pieczątki + brama czytelności) oraz Split-Screen Verifier w `apps/web` (`/ocr`, `POST /api/v1/ocr/analyze`). Szczegóły: [0314-python-worker.md](../docs/0314-python-worker.md).
 - [Czat OpenAI, Markdown i metryki odpowiedzi — 2026-11-19](memories/2026-11-19/20261119-004617-chat-openai-markdown-metrics.md)
 - [Upload, powiadomienia i Info starszej wersji — 2026-11-18](memories/2026-11-18/20261118-220126-file-upload-and-revision-info.md)
 - [Wersje plików, przywracanie i trwałe usuwanie — 2026-11-18](memories/2026-11-18/20261118-204644-file-revisions.md)

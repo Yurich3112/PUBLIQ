@@ -20,4 +20,4 @@ rules:
     - Clearly separate Frontend/OCR tasks (apps/web) from Backend/AI/JSON Graph tasks (apps/pyworker) for a 2-person team.
     - Reference the 6 Jury validation tests from the HackNation brief.
   tasks:
-    - Group implementation tasks into parallelizable tracks: Track A (Frontend & Split-Screen OCR) and Track B (Pyworker Backend, PII-Tracer & JSON Knowledge Graph).
+    - "Group implementation tasks into parallelizable tracks: Track A (Frontend & Split-Screen OCR) and Track B (Pyworker Backend, PII-Tracer & JSON Knowledge Graph)."

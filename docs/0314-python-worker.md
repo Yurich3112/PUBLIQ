@@ -103,12 +103,24 @@ Default address: `http://127.0.0.1:8010`.
 | `GET /health/ready` | Application startup completed; 503 otherwise |
 | `GET /health` | Readiness alias |
 | `POST /v1/tasks/check` | Authenticated deterministic diagnostic |
+| `POST /v1/tasks/ocr` | Authenticated local 5-stage handwritten/scanned OCR (`application/octet-stream`, up to 10 MiB) |
 
-Health responses contain `status`, `service` and `check`, with no credentials.
-They use `Cache-Control: no-store` and request IDs. Readiness does not claim that
-a model or external dependency is available. Setup points `MONITOR_PYWORKER_URL`
+Health responses contain `status`, `service`, `check` and sanitized `ocr` (`ready` or `degraded`), with no credentials.
+They use `Cache-Control: no-store` and request IDs. Readiness does not leak Ollama hostnames, ports, or tokens. Setup points `MONITOR_PYWORKER_URL`
 to `/health/ready`; the existing scheduler persists observations independently
 of whether the administration page has automatic refresh enabled.
+
+### Handwritten OCR task (`POST /v1/tasks/ocr`)
+
+Accepts raw PDF, PNG, or JPEG bytes (`Content-Type: application/octet-stream`, validated by leading magic bytes, max `PYWORKER_OCR_MAX_BYTES`, default 10 MiB) with optional `X-File-Name` and `X-OCR-Options` JSON headers. The pipeline runs 100% locally with zero cloud dependency:
+
+1. **Stage 0 (`pyworker.ocr.ingest`):** Magic-byte check, page cap (`PYWORKER_OCR_MAX_PAGES`), native selectable-text PDF fast-path (`source_mode: "digital_text"`), or 200 DPI rasterization.
+2. **Stage 1 (`pyworker.ocr.grid_eraser`):** OpenCV morphological graph-paper grid suppression preserving handwritten strokes and Kancelaria stamps.
+3. **Stage 2 (`pyworker.ocr.word_detector` + `line_grouper`):** Lightweight ONNX DBNet (`rapidocr`) word-box detector with horizontal gap splitting, reading-order line clustering, and `handwriting` / `stamp` / `printed` zone classification.
+4. **Stage 3 (`pyworker.ocr.ollama_recognizer`):** Local Ollama `POST /api/chat` (`PYWORKER_OLLAMA_URL`, loopback-only by default, model `PYWORKER_OCR_VLM_MODEL`, default `qwen2.5vl:3b`) reading lines in context.
+5. **Stage 4 (`pyworker.ocr.aligner` + `stamp_parser`):** 1:1 token-to-box alignment (`exact` / `merged_box` / `split_box`), Kancelaria stamp parsing (`received_date`, `registry_number`), and document legibility verdict (`legible` / `illegible_review_required`).
+
+OCR logs record only correlation metadata (`request_id`, `page_count`, `word_count`, `source_mode`, `duration_ms`) and never log raw document bytes, filenames, or transcribed text.
 
 The task endpoint requires `Authorization: Bearer <PYWORKER_API_TOKEN>` and JSON:
 
