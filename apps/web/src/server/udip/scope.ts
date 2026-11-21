@@ -9,7 +9,7 @@ export function caseScope(actor: UdipActor): Prisma.UdipCaseWhereInput {
 /** Serialize changes to the current draft, redactions, approval and dispatch. */
 export async function lockUdipCase(tx: Prisma.TransactionClient, actor: UdipActor, uuid: string) {
   const [row] = await tx.$queryRaw<{ signature: string; subject: string | null }[]>`
-    SELECT c.signature, c.subject FROM udip_case c
+    SELECT c.signature, c.subject FROM udip_workflow_case c
     WHERE c.uuid = ${uuid}::uuid AND (
       ${actor.isAdmin}::boolean OR c.owner_uuid = ${actor.id}::uuid OR EXISTS (
         SELECT 1 FROM udip_department_assignment a WHERE a.case_uuid = c.uuid AND a.assignee_uuid = ${actor.id}::uuid

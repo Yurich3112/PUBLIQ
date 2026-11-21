@@ -1,9 +1,44 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.js';
 
-export { PrismaClient, Prisma, RoleCode, ProductStatus, TagStatus } from './generated/prisma/client.js';
+export {
+  PrismaClient,
+  Prisma,
+  RoleCode,
+  ProductStatus,
+  TagStatus,
+  UdipProcessStatus,
+  UdipRoutingType,
+  UdipTemplateType,
+  UdipDeptStatus,
+  KbNodeType,
+  KbEdgeRelation,
+  InstitutionKind,
+} from './generated/prisma/client.js';
 export * from './system-config.js';
-export type { User, Session, Account, Verification, System, Role, File, FileVersion, Tag, FileTag, Product } from './generated/prisma/client.js';
+export * from './udip-cases.js';
+export * from './knowledge-graph.js';
+export * from './institutions-and-templates.js';
+export type {
+  User,
+  Session,
+  Account,
+  Verification,
+  System,
+  Role,
+  File,
+  FileVersion,
+  Tag,
+  FileTag,
+  Product,
+  UdipCalendarCase as UdipCase,
+  UdipDepartmentQuery,
+  KbCluster,
+  KbNode,
+  KbEdge,
+  InstitutionRegistry,
+  ResponseTemplateArchive,
+} from './generated/prisma/client.js';
 
 export interface DatabaseOptions {
   connectionString: string;
