@@ -1,7 +1,9 @@
 """ASGI application with lifecycle health, bounded concurrency, OCR, and safe errors."""
 
 import asyncio
+import base64
 import logging
+import os
 from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
@@ -249,6 +251,40 @@ def create_app(
 
     @app.post("/v1/tasks/udip/ocr")
     async def ocr(task: UdipOcrRequest):
-        return await infer(read_pdf_scan, task.content_base64, timeout=settings.ocr_timeout)
+        if os.getenv("UDIP_OCR_DET_MODEL_DIR") and os.getenv("UDIP_OCR_REC_MODEL_DIR"):
+            return await infer(read_pdf_scan, task.content_base64, timeout=settings.ocr_timeout)
+
+        # Fallback to the local 5-stage handwritten OCR pipeline (OpenCV Grid Eraser + RapidOCR + Ollama VLM)
+        if not app.state.ready or app.state.slots.locked():
+            return JSONResponse({"error": "unavailable"}, status_code=503)
+        async with app.state.slots:
+            try:
+                raw_bytes = base64.b64decode(task.content_base64, validate=True)
+                async with asyncio.timeout(settings.ocr_timeout):
+                    result = await app.state.ocr_pipeline.process_document(
+                        raw_bytes, options=OcrOptions()
+                    )
+                text = (result.assembled_text or "").strip()
+                if not text:
+                    return JSONResponse({"error": "unavailable"}, status_code=503)
+                pages = [
+                    {
+                        "page": page.page_index + 1,
+                        "width": page.width,
+                        "height": page.height,
+                        "words": [
+                            {"text": word.text, "box": list(word.bbox)}
+                            for word in page.words
+                            if word.text.strip()
+                        ][:5000],
+                    }
+                    for page in result.pages
+                ]
+                return {"text": text, "pages": pages}
+            except TimeoutError:
+                return JSONResponse({"error": "task_timeout"}, status_code=504)
+            except Exception as error:
+                logger.error("event=udip_ocr_fallback_failed error_type=%s", type(error).__name__)
+                return JSONResponse({"error": "unavailable"}, status_code=503)
 
     return app
