@@ -16,6 +16,9 @@ export const API_ROUTES = {
   fileUpload: `${API_BASE_PATH}/admin/files/upload`,
   chat: `${API_BASE_PATH}/chat`,
   chatAttachment: `${API_BASE_PATH}/chat/attachments/{uuid}`,
+  cases: `${API_BASE_PATH}/cases`,
+  caseById: `${API_BASE_PATH}/cases/{uuid}`,
+  caseDepartments: `${API_BASE_PATH}/cases/{uuid}/departments`,
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,
     renew: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.renew}`,

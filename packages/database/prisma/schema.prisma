@@ -73,6 +73,9 @@ model User {
   publishedConfigs  SystemConfigVersion[]    @relation("ConfigPublishedBy")
   archivedConfigs   SystemConfigVersion[]    @relation("ConfigArchivedBy")
   configActivations SystemConfigActivation[]
+  assignedUdipCases UdipCase[]               @relation("UdipCaseAssignee")
+  createdUdipCases  UdipCase[]               @relation("UdipCaseCreatedBy")
+  updatedUdipCases  UdipCase[]               @relation("UdipCaseUpdatedBy")
 
   @@map("user")
 }
@@ -304,6 +307,8 @@ model File {
   versions      FileVersion[]
   tags          FileTag[]
   products      Product[]     @relation("ProductImage")
+  udipSourceCases UdipCase[]  @relation("UdipCaseSourceFile")
+  udipDeptReplies UdipDepartmentQuery[] @relation("UdipDeptReplyFile")
 
   @@index([createdByUuid])
   @@index([updatedByUuid])
@@ -470,4 +475,120 @@ model ChangeHistory {
   @@index([entity, entityUuid, occurredAt])
   @@index([parentUuid, uuid])
   @@map("change_history")
+}
+
+/// UDIP request lifecycle statuses A–E displayed in the Clerk Calendar/Table.
+enum UdipProcessStatus {
+  /// A — Brak działań
+  A
+  /// B — Zapytania wysłane do wydziałów
+  B
+  /// C — Kwerenda (+ dodatkowa ilość dni, Art. 13 ust. 2 UDIP) / Wezwanie do doprecyzowania
+  C
+  /// D — Przygotowana odpowiedź
+  D
+  /// E — Odpowiedź wysłana do wnioskodawcy
+  E
+}
+
+/// Routing path selected by the 2-Tier Knowledge Graph or AI Fallback.
+enum UdipRoutingType {
+  INTERNAL_DEPARTMENTS
+  EXTERNAL_AUTHORITY
+  CLARIFICATION_7D
+}
+
+/// Official BKS letter template category.
+enum UdipTemplateType {
+  MERIT_RESPONSE
+  KWERENDA_EXTENSION
+  CLARIFICATION_CALL
+  EXTERNAL_REDIRECT
+}
+
+/// Per-department response state in the expandable Calendar Table sub-row.
+enum UdipDeptStatus {
+  PENDING
+  REPLIED
+  KWERENDA_REQUESTED
+}
+
+/// Public information request (UDIP) tracked in the BKS UM Bydgoszcz Calendar/Table ("SPRAWY DB").
+model UdipCase {
+  uuid                   String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Official BKS signature, e.g. BKS.IV.1431.599.2026.
+  caseNumber             String                @unique @map("case_number") @db.VarChar(40)
+  year                   Int
+  sequenceNumber         Int                   @map("sequence_number")
+  /// Kancelaria receipt number extracted from scan stamp, e.g. 3468/2026.
+  registryNumber         String?               @map("registry_number") @db.VarChar(40)
+  applicantName          String                @map("applicant_name") @db.VarChar(255)
+  applicantContact       String?               @map("applicant_contact") @db.VarChar(255)
+  subject                String
+  receivedDate           DateTime              @map("received_date") @db.Timestamptz(3)
+  deadlineDate           DateTime              @map("deadline_date") @db.Timestamptz(3)
+  deadlineNote           String?               @map("deadline_note") @db.VarChar(160)
+  answeredDate           DateTime?             @map("answered_date") @db.Timestamptz(3)
+  assigneeName           String                @map("assignee_name") @db.VarChar(120)
+  assigneeInitials       String                @map("assignee_initials") @db.VarChar(8)
+  assigneeUserUuid       String?               @map("assignee_user_uuid") @db.Uuid
+  processStatus          UdipProcessStatus     @default(A) @map("process_status")
+  isMultiDepartment      Boolean               @default(false) @map("is_multi_department")
+  sourceFileUuid         String?               @map("source_file_uuid") @db.Uuid
+  sourceMode             String?               @map("source_mode") @db.VarChar(24)
+  verifiedRequestText    String?               @map("verified_request_text")
+  ocrConfidence          Float?                @map("ocr_confidence")
+  matchedCaseNumber      String?               @map("matched_case_number") @db.VarChar(40)
+  matchSimilarity        Float?                @map("match_similarity")
+  routingType            UdipRoutingType       @default(INTERNAL_DEPARTMENTS) @map("routing_type")
+  externalAuthorityName  String?               @map("external_authority_name") @db.VarChar(255)
+  letterTemplateType     UdipTemplateType?     @map("letter_template_type")
+  draftResponseText      String?               @map("draft_response_text")
+  anonymizedResponseText String?               @map("anonymized_response_text")
+  piiRedactionsCount     Int                   @default(0) @map("pii_redactions_count")
+  addedToKnowledgeGraph  Boolean               @default(false) @map("added_to_knowledge_graph")
+  createdByUuid          String?               @map("created_by") @db.Uuid
+  updatedByUuid          String?               @map("updated_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assigneeUser           User?                 @relation("UdipCaseAssignee", fields: [assigneeUserUuid], references: [uuid], onDelete: SetNull)
+  sourceFile             File?                 @relation("UdipCaseSourceFile", fields: [sourceFileUuid], references: [uuid], onDelete: SetNull)
+  createdBy              User?                 @relation("UdipCaseCreatedBy", fields: [createdByUuid], references: [uuid], onDelete: SetNull)
+  updatedBy              User?                 @relation("UdipCaseUpdatedBy", fields: [updatedByUuid], references: [uuid], onDelete: SetNull)
+  departmentQueries      UdipDepartmentQuery[]
+
+  @@unique([year, sequenceNumber])
+  @@index([year, receivedDate(sort: Asc), sequenceNumber(sort: Asc)])
+  @@index([processStatus, deadlineDate])
+  @@index([assigneeUserUuid])
+  @@index([sourceFileUuid])
+  @@index([createdByUuid])
+  @@index([updatedByUuid])
+  @@map("udip_case")
+}
+
+/// Expandable per-department inquiry sub-row attached to a UdipCase.
+model UdipDepartmentQuery {
+  uuid            String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  caseUuid        String         @map("case_uuid") @db.Uuid
+  sortOrder       Int            @default(0) @map("sort_order")
+  departmentName  String         @map("department_name") @db.VarChar(200)
+  departmentEmail String?        @map("department_email") @db.VarChar(200)
+  status          UdipDeptStatus @default(PENDING)
+  questionText    String?        @map("question_text")
+  /// Raw email reply text pasted directly by the clerk inside the Calendar Table row.
+  replyText       String?        @map("reply_text")
+  /// File name of an attached PDF/DOCX reply from the department.
+  replyFileName   String?        @map("reply_file_name") @db.VarChar(255)
+  replyFileUuid   String?        @map("reply_file_uuid") @db.Uuid
+  sentAt          DateTime?      @map("sent_at") @db.Timestamptz(3)
+  repliedAt       DateTime?      @map("replied_at") @db.Timestamptz(3)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  udipCase        UdipCase       @relation(fields: [caseUuid], references: [uuid], onDelete: Cascade)
+  replyFile       File?          @relation("UdipDeptReplyFile", fields: [replyFileUuid], references: [uuid], onDelete: SetNull)
+
+  @@index([caseUuid, sortOrder])
+  @@index([replyFileUuid])
+  @@map("udip_department_query")
 }

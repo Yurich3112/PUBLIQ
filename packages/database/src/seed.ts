@@ -1,5 +1,6 @@
 import { RoleCode, type PrismaClient } from './generated/prisma/client.js';
 import { CONFIG_DEFAULTS } from './config-contracts.js';
+import { seedUdipCases } from './udip-cases.js';
 
 export const SYSTEM_KEY = 'modulon';
 export const SYSTEM_USER_KEY = 'SYSTEM';
@@ -11,7 +12,7 @@ export const SYSTEM_ROLES = [RoleCode.ROOT, RoleCode.SADMIN, RoleCode.ADMIN, Rol
 export function seedDatabase(database: PrismaClient, { activateLlmPrompt = false } = {}) {
   return database.$transaction(async (tx) => {
     const existingSystem = await tx.system.findUnique({ where: { key: SYSTEM_KEY }, select: { uuid: true } });
-    const created = { system: 0, roles: 0, systemUser: 0, configuration: 0, llmPrompt: 0 };
+    const created = { system: 0, roles: 0, systemUser: 0, configuration: 0, llmPrompt: 0, udipCases: 0 };
     if (!existingSystem) {
       created.system = (await tx.system.createMany({ data: [{ key: SYSTEM_KEY }], skipDuplicates: true })).count;
     }
@@ -66,6 +67,7 @@ export function seedDatabase(database: PrismaClient, { activateLlmPrompt = false
         llmPromptActivated = true;
       }
     }
+    created.udipCases = await seedUdipCases(tx, systemUser.uuid);
     return {
       system: await tx.system.findUniqueOrThrow({ where: { key: SYSTEM_KEY }, select: { uuid: true, key: true, activeConfigUuid: true } }),
       systemUser,
