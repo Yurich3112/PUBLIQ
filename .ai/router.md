@@ -10,6 +10,8 @@ konfigurację i działanie usług. Nie zapisuj tutaj sekretów ani danych sesji.
 
 ## Aktualny kontekst
 
+- **[AGENTS.md — Instrukcje dla agentów, OpenSpec i Skillpack](../AGENTS.md)**
+- **[Pełna specyfikacja rozwiązania HackNation 2026: Inteligentny Asystent Urzędnika UDIP (UM Bydgoszcz)](../docs/UDIP_COMPLETE_IDEA.md)**
 - [Czat OpenAI, Markdown i metryki odpowiedzi — 2026-11-19](memories/2026-11-19/20261119-004617-chat-openai-markdown-metrics.md)
 - [Upload, powiadomienia i Info starszej wersji — 2026-11-18](memories/2026-11-18/20261118-220126-file-upload-and-revision-info.md)
 - [Wersje plików, przywracanie i trwałe usuwanie — 2026-11-18](memories/2026-11-18/20261118-204644-file-revisions.md)

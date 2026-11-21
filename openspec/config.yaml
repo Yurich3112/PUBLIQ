@@ -1,0 +1,23 @@
+schema: spec-driven
+
+context: |
+  Project: HackNation 2026 — Inteligentny Asystent Urzędnika (UM Bydgoszcz / Biuro Komunikacji Społecznej).
+  Read AGENTS.md and docs/UDIP_COMPLETE_IDEA.md for full domain requirements and mentor decisions.
+  Monorepo stack:
+  - apps/web: Next.js 16, React 19, Tailwind CSS v4, TypeScript (Frontend & Split-Screen Handwritten OCR UI).
+  - apps/pyworker: Python 3.14, FastAPI, Uvicorn on port 8010 (PII-Tracer anonymizer, OCR word bounding-box pipeline, lightweight JSON Knowledge Graph knowledge_graph.json, and official UM Bydgoszcz .docx/.txt letter generator).
+  - packages/database: Prisma 7.10.1 + PostgreSQL.
+  Key domain rules:
+  - Web app in browser (no .exe), supporting ~800 UDIP requests/year with IDs BKS.IV.1431.<nr>.<rok>.
+  - Calendar table displays 10 demo cases (5 Green / 5 Red), remaining days countdown, multi-department alerts, and expandable per-department sub-statuses where clerks can attach PDF/DOCX or paste email text inline.
+  - Handwritten/scanned requests open a Split-Screen OCR view with 1:1 word bounding-box highlighting and a 1-click "Wezwanie do uzupełnienia" if illegible.
+  - Two-tier recommendation engine: fast JSON Summary Graph lookup (<10ms, low context) first, local AI fallback second (with auto-redirect/auto-email for external bodies like ZUS, ZDMiKP, WKZ).
+  - Irreversible grey-to-black anonymization using perplexity-ai/PII-Tracer (~600M) + Polish legal rules (28 BKS categories, public official guard under Art. 5 ust. 2 UDIP).
+  - Separate Admin Panel (Panel Admina) for uploading knowledge base documents and visualizing where a newly added document lands in the knowledge graph.
+
+rules:
+  proposal:
+    - Clearly separate Frontend/OCR tasks (apps/web) from Backend/AI/JSON Graph tasks (apps/pyworker) for a 2-person team.
+    - Reference the 6 Jury validation tests from the HackNation brief.
+  tasks:
+    - Group implementation tasks into parallelizable tracks: Track A (Frontend & Split-Screen OCR) and Track B (Pyworker Backend, PII-Tracer & JSON Knowledge Graph).
