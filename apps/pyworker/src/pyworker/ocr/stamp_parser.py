@@ -5,9 +5,9 @@ import re
 
 from pyworker.contracts import StampMetadata
 
-DMY_PATTERN = re.compile(r"\b(\d{1,2})[.\-/](\d{1,2})[.\-/](20\d{2})\b")
-YMD_PATTERN = re.compile(r"\b(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})\b")
-REGISTRY_PATTERN = re.compile(r"\b(\d{1,6}/20\d{2})\b")
+DMY_PATTERN = re.compile(r"\b(\d{1,2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(20\d{2})\b")
+YMD_PATTERN = re.compile(r"\b(20\d{2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})\b")
+REGISTRY_PATTERN = re.compile(r"\b(\d{1,6}\s*/\s*20\d{2})\b")
 
 
 def _extract_iso_date(text: str) -> str | None:
@@ -28,7 +28,7 @@ def _extract_iso_date(text: str) -> str | None:
 
 def _extract_registry_number(text: str) -> str | None:
     match = REGISTRY_PATTERN.search(text)
-    return match.group(1) if match else None
+    return re.sub(r"\s+", "", match.group(1)) if match else None
 
 
 def parse_stamp_metadata(
@@ -54,6 +54,7 @@ def parse_stamp_metadata(
             registry_number = _extract_registry_number(line)
 
     if (received_date is None or registry_number is None) and header_fallback_lines:
+        joined = "\n".join(header_fallback_lines)
         for line in header_fallback_lines:
             lower = line.lower()
             if received_date is None and (
@@ -64,6 +65,10 @@ def parse_stamp_metadata(
                 "wpływ" in lower or "wplyw" in lower or "nr" in lower or "referat" in lower
             ):
                 registry_number = _extract_registry_number(line)
+        if received_date is None:
+            received_date = _extract_iso_date(joined)
+        if registry_number is None:
+            registry_number = _extract_registry_number(joined)
 
     return StampMetadata(
         received_date=received_date,

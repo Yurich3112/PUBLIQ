@@ -14,45 +14,177 @@ def _merge_boxes(
     return (x0, y0, max(1, x1 - x0), max(1, y1 - y0))
 
 
+def _merge_span(boxes: list[tuple[int, int, int, int]]) -> tuple[int, int, int, int]:
+    x0 = min(b[0] for b in boxes)
+    y0 = min(b[1] for b in boxes)
+    x1 = max(b[0] + b[2] for b in boxes)
+    y1 = max(b[1] + b[3] for b in boxes)
+    return (x0, y0, max(1, x1 - x0), max(1, y1 - y0))
+
+
 def _reduce_boxes(
-    boxes: list[tuple[int, int, int, int]], target: int
+    boxes: list[tuple[int, int, int, int]],
+    tokens: list[RecognizedToken],
 ) -> list[tuple[int, int, int, int]]:
-    """Greedily merge adjacent pairs with the smallest horizontal gap until len == target."""
-    current = list(boxes)
-    while len(current) > target and len(current) >= 2:
-        best_idx = 0
-        best_gap = float("inf")
-        for idx in range(len(current) - 1):
-            gap = current[idx + 1][0] - (current[idx][0] + current[idx][2])
-            if gap < best_gap:
-                best_gap = gap
-                best_idx = idx
-        merged = _merge_boxes(current[best_idx], current[best_idx + 1])
-        current[best_idx : best_idx + 2] = [merged]
-    return current
+    """Merge atomic ink chunks into word boxes via character-width + gap-aware DP."""
+    m = len(boxes)
+    k = len(tokens)
+    if k <= 0 or m <= 0:
+        return []
+    if k == 1:
+        return [_merge_span(boxes)]
+    if m <= k:
+        return list(boxes)
+
+    line_x0 = boxes[0][0]
+    line_x1 = max(b[0] + b[2] for b in boxes)
+    line_w = max(1.0, float(line_x1 - line_x0))
+    line_h = max(1.0, float(max(b[3] for b in boxes)))
+    gaps = [max(0.0, float(boxes[i + 1][0] - (boxes[i][0] + boxes[i][2]))) for i in range(m - 1)]
+    max_gap = max(1.0, max(gaps, default=1.0))
+
+    word_lens = [max(1, len(tok.text.strip())) for tok in tokens]
+    total_units = float(sum(word_lens) + max(0, k - 1))
+    exp_starts: list[float] = []
+    exp_ends: list[float] = []
+    cursor = 0.0
+    for length in word_lens:
+        exp_starts.append(cursor / total_units)
+        cursor += length
+        exp_ends.append(cursor / total_units)
+        cursor += 1.0
+
+    # dp[j][b] = minimum cost to align words 0..j onto atomic chunks 0..b (inclusive).
+    inf = float("inf")
+    dp = [[inf] * m for _ in range(k)]
+    parent = [[-1] * m for _ in range(k)]
+
+    for j in range(k):
+        es, ee = exp_starts[j], exp_ends[j]
+        ew = ee - es
+        min_a = j
+        max_b_limit = m - (k - 1 - j)
+        for b in range(min_a, max_b_limit):
+            a_start = 0 if j == 0 else j
+            a_end = 0 if j == 0 else b
+            best_cost = inf
+            best_a = -1
+            for a in range(a_start, a_end + 1):
+                prev_cost = 0.0 if j == 0 else dp[j - 1][a - 1]
+                if prev_cost == inf:
+                    continue
+                act_s = (boxes[a][0] - line_x0) / line_w
+                act_e = ((boxes[b][0] + boxes[b][2]) - line_x0) / line_w
+                act_w = act_e - act_s
+                cost = (act_s - es) ** 2 + (act_e - ee) ** 2 + 1.5 * ((act_w - ew) ** 2)
+                if a > 0:
+                    # Reward placing word boundaries at wider horizontal whitespace gaps.
+                    cost -= 0.12 * (gaps[a - 1] / max_gap)
+                if b > a:
+                    # Penalize merging across unusually wide horizontal gaps inside one word.
+                    cost += 0.06 * sum((gaps[i] / line_h) ** 2 for i in range(a, b))
+                total = prev_cost + cost
+                if total < best_cost:
+                    best_cost = total
+                    best_a = a
+            dp[j][b] = best_cost
+            parent[j][b] = best_a
+
+    # Backtrack optimal chunk ranges for each word.
+    spans: list[tuple[int, int]] = []
+    cur_b = m - 1
+    for j in range(k - 1, -1, -1):
+        a = parent[j][cur_b]
+        if a < 0:
+            a = j
+        spans.append((a, cur_b))
+        cur_b = a - 1
+    spans.reverse()
+    return [_merge_span(boxes[a : b + 1]) for a, b in spans]
+
+
+def _split_box_for_tokens(
+    box: tuple[int, int, int, int],
+    tokens: list[RecognizedToken],
+) -> list[tuple[int, int, int, int]]:
+    """Split a single multi-word box proportionally across its assigned tokens."""
+    if len(tokens) <= 1:
+        return [box]
+    x, y, w, h = box
+    weights = [max(1, len(tok.text.strip())) for tok in tokens]
+    total = sum(weights)
+    result: list[tuple[int, int, int, int]] = []
+    cur_x = x
+    remaining_w = w
+    for idx, weight in enumerate(weights):
+        if idx == len(weights) - 1:
+            part_w = max(1, remaining_w)
+        else:
+            min_left_for_rest = len(weights) - 1 - idx
+            raw_w = round(w * weight / total)
+            part_w = max(1, min(remaining_w - min_left_for_rest, raw_w))
+        result.append((cur_x, y, part_w, h))
+        cur_x += part_w
+        remaining_w = max(1, remaining_w - part_w)
+    return result
 
 
 def _expand_boxes(
     boxes: list[tuple[int, int, int, int]],
     tokens: list[RecognizedToken],
 ) -> list[tuple[int, int, int, int]]:
-    """Split widest boxes proportionally until len(boxes) == len(tokens)."""
-    current = list(boxes)
-    target = len(tokens)
-    while len(current) < target:
-        widest_idx = max(range(len(current)), key=lambda i: current[i][2])
-        x, y, w, h = current[widest_idx]
-        if w < 2:
-            # Degenerate 1px box: duplicate rightmost coordinate with min width 1.
-            current.insert(widest_idx + 1, (x + 1, y, 1, h))
-            continue
-        left_weight = max(1, len(tokens[min(widest_idx, target - 1)].text))
-        right_weight = max(1, len(tokens[min(widest_idx + 1, target - 1)].text))
-        split_w = max(1, min(w - 1, round(w * left_weight / (left_weight + right_weight))))
-        left_box = (x, y, split_w, h)
-        right_box = (x + split_w, y, max(1, w - split_w), h)
-        current[widest_idx : widest_idx + 1] = [left_box, right_box]
-    return current
+    """Assign tokens monotonically to boxes via DP, then split multi-token boxes proportionally."""
+    m = len(boxes)
+    k = len(tokens)
+    if m == 0 or k == 0:
+        return []
+    if m == 1:
+        return _split_box_for_tokens(boxes[0], tokens)
+
+    total_box_w = float(sum(max(1, b[2]) for b in boxes))
+    box_fracs = [max(1, b[2]) / total_box_w for b in boxes]
+    word_lens = [max(1, len(tok.text.strip())) for tok in tokens]
+    total_chars = float(sum(word_lens))
+
+    # dp[i][t] = min cost to assign boxes 0..i to cover tokens 0..t (inclusive).
+    inf = float("inf")
+    dp = [[inf] * k for _ in range(m)]
+    parent = [[-1] * k for _ in range(m)]
+
+    for i in range(m):
+        max_t = k - (m - 1 - i)
+        for t in range(i, max_t):
+            s_start = 0 if i == 0 else i
+            s_end = 0 if i == 0 else t
+            best_cost = inf
+            best_s = -1
+            for s in range(s_start, s_end + 1):
+                prev_cost = 0.0 if i == 0 else dp[i - 1][s - 1]
+                if prev_cost == inf:
+                    continue
+                tok_frac = sum(word_lens[s : t + 1]) / total_chars
+                cost = (tok_frac - box_fracs[i]) ** 2
+                total = prev_cost + cost
+                if total < best_cost:
+                    best_cost = total
+                    best_s = s
+            dp[i][t] = best_cost
+            parent[i][t] = best_s
+
+    groups: list[tuple[int, int]] = []
+    cur_t = k - 1
+    for i in range(m - 1, -1, -1):
+        s = parent[i][cur_t]
+        if s < 0:
+            s = i
+        groups.append((s, cur_t))
+        cur_t = s - 1
+    groups.reverse()
+
+    expanded: list[tuple[int, int, int, int]] = []
+    for box, (s, t) in zip(boxes, groups, strict=True):
+        expanded.extend(_split_box_for_tokens(box, tokens[s : t + 1]))
+    return expanded
 
 
 def align_line_words(
@@ -73,7 +205,7 @@ def align_line_words(
         aligned_boxes = raw_boxes
         aligned_by = "exact"
     elif len(tokens) < len(raw_boxes):
-        aligned_boxes = _reduce_boxes(raw_boxes, len(tokens))
+        aligned_boxes = _reduce_boxes(raw_boxes, tokens)
         aligned_by = "merged_box"
     else:
         aligned_boxes = _expand_boxes(raw_boxes, tokens)
@@ -85,7 +217,10 @@ def align_line_words(
         if aligned_by == "merged_box":
             conf = round(conf * 0.92, 4)
         elif aligned_by == "split_box":
-            conf = round(min(conf, 0.75), 4)
+            if line.zone == "printed" and conf >= 0.88:
+                conf = round(conf * 0.92, 4)
+            else:
+                conf = round(min(conf, 0.75), 4)
         else:
             conf = round(conf, 4)
         words.append(

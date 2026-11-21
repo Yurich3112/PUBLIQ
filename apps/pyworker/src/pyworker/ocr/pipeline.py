@@ -1,5 +1,6 @@
-"""End-to-end local OCR pipeline orchestrating Stages 0-4."""
+"""End-to-end local OCR pipeline orchestrating Stages 0-4 without blocking asyncio."""
 
+import asyncio
 from time import perf_counter
 from typing import Any
 
@@ -17,7 +18,15 @@ from pyworker.contracts import (
 from pyworker.ocr.aligner import align_line_words, build_digital_words
 from pyworker.ocr.grid_eraser import erase_graph_grid
 from pyworker.ocr.ingest import ingest_document
-from pyworker.ocr.interfaces import DetectedBox, IngestedPage, LineRecognizer, WordDetector
+from pyworker.ocr.interfaces import (
+    DetectedBox,
+    GroupedLine,
+    IngestedPage,
+    LineRecognizer,
+    RecognizedLine,
+    RecognizedToken,
+    WordDetector,
+)
 from pyworker.ocr.line_grouper import group_boxes_into_lines
 from pyworker.ocr.ollama_recognizer import OllamaLineRecognizer
 from pyworker.ocr.stamp_parser import parse_stamp_metadata
@@ -140,17 +149,30 @@ class OcrPipeline:
             [],
         )
 
-    async def _process_scanned_page(
-        self, page: IngestedPage
-    ) -> tuple[OcrPage, list[str], list[str], list[str]]:
+    def _run_cv_and_detection(self, page: IngestedPage):
         cleaned_rgb, grid_removed = erase_graph_grid(page.image_rgb)
         detected = self._detector.detect(cleaned_rgb)
-        default_zone = "handwriting" if grid_removed else "handwriting"
         grouped = group_boxes_into_lines(
             detected,
             page_index=page.page_index,
-            image_rgb=page.image_rgb,
-            default_zone=default_zone,
+            image_rgb=cleaned_rgb,
+            default_zone="handwriting" if grid_removed else "printed",
+        )
+        return cleaned_rgb, grid_removed, grouped
+
+    @staticmethod
+    def _line_draft(grp: GroupedLine) -> tuple[str, float]:
+        pieces = [b.text.strip() for b in grp.boxes if b.text and b.text.strip()]
+        if not pieces:
+            return "", 0.0
+        avg_score = sum(b.score for b in grp.boxes) / max(1, len(grp.boxes))
+        return " ".join(pieces), max(0.0, min(1.0, avg_score))
+
+    async def _process_scanned_page(
+        self, page: IngestedPage
+    ) -> tuple[OcrPage, list[str], list[str], list[str]]:
+        cleaned_rgb, grid_removed, grouped = await asyncio.to_thread(
+            self._run_cv_and_detection, page
         )
 
         all_words: list[OcrWord] = []
@@ -159,13 +181,49 @@ class OcrPipeline:
         stamp_lines: list[str] = []
         header_lines: list[str] = []
 
+        # Keep high-confidence printed/stamp lines directly from local ONNX recognizer,
+        # and route only low-confidence or un-transcribed lines to the local VLM recognizer.
+        recognized_list: list[RecognizedLine | None] = [None] * len(grouped)
+        refine_indices: list[int] = []
+        refine_lines: list[GroupedLine] = []
+        refine_hints: list[tuple[str, float]] = []
+
         for idx, grp in enumerate(grouped):
-            # Use original image for stamps so frame/barcode text is untouched; cleaned for body.
-            source_img = page.image_rgb if grp.zone == "stamp" else cleaned_rgb
-            crop = _crop_with_padding(source_img, grp.bbox)
-            recognized = await self._recognizer.recognize_line(
-                crop, zone=grp.zone, expected_words=len(grp.boxes)
-            )
+            draft_text, draft_score = self._line_draft(grp)
+            if draft_text and draft_score >= 0.88:
+                tokens = [
+                    RecognizedToken(text=piece, confidence=round(draft_score, 4))
+                    for piece in draft_text.split()
+                    if piece
+                ]
+                recognized_list[idx] = RecognizedLine(
+                    text=" ".join(t.text for t in tokens), tokens=tokens
+                )
+            else:
+                refine_indices.append(idx)
+                refine_lines.append(grp)
+                refine_hints.append((draft_text, draft_score))
+
+        if refine_lines:
+            batch_fn = getattr(self._recognizer, "recognize_page_lines", None)
+            if callable(batch_fn):
+                vlm_results = await batch_fn(cleaned_rgb, refine_lines, draft_hints=refine_hints)
+            else:
+                vlm_results = []
+                for grp in refine_lines:
+                    source_img = page.image_rgb if grp.zone == "stamp" else cleaned_rgb
+                    crop = _crop_with_padding(source_img, grp.bbox)
+                    vlm_results.append(
+                        await self._recognizer.recognize_line(
+                            crop, zone=grp.zone, expected_words=len(grp.boxes)
+                        )
+                    )
+            for idx, rec in zip(refine_indices, vlm_results, strict=True):
+                recognized_list[idx] = rec
+
+        for idx, (grp, recognized) in enumerate(zip(grouped, recognized_list, strict=True)):
+            if recognized is None:
+                continue
             line_words = align_line_words(
                 grp,
                 recognized,
@@ -189,7 +247,7 @@ class OcrPipeline:
                 stamp_lines.append(line_text)
             else:
                 body_lines.append(line_text)
-                if idx < 6:
+                if idx < 14:
                     header_lines.append(line_text)
 
         source_mode: OcrSourceMode = "handwritten_ocr" if grid_removed else "printed_ocr"
@@ -221,7 +279,8 @@ class OcrPipeline:
         started = perf_counter()
         opts = options or OcrOptions()
         page_cap = min(opts.max_pages or self._settings.ocr_max_pages, self._settings.ocr_max_pages)
-        ingested = ingest_document(
+        ingested = await asyncio.to_thread(
+            ingest_document,
             data,
             max_pages=page_cap,
             include_preview=opts.include_preview_images,

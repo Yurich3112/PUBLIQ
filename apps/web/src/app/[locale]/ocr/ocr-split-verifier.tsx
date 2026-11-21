@@ -84,7 +84,16 @@ export function OcrSplitVerifier({
             ? (json as { status: unknown }).status
             : null,
         );
-        setErrorCode(parsedError.success ? parsedError.data : "failed");
+        const fallbackCode: OcrErrorCode = response.status === 504 || response.status === 408
+          ? "timeout"
+          : response.status === 413
+            ? "tooLarge"
+            : response.status === 503
+              ? "unavailable"
+              : response.status === 401 || response.status === 403
+                ? "denied"
+                : "failed";
+        setErrorCode(parsedError.success ? parsedError.data : fallbackCode);
         setAnalysis(null);
         return;
       }

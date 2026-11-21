@@ -39,6 +39,7 @@ class IngestedPage:
 class DetectedBox:
     bbox: tuple[int, int, int, int]
     score: float = 1.0
+    text: str | None = None
 
 
 @dataclass(slots=True)

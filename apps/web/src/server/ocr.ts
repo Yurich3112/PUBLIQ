@@ -50,7 +50,8 @@ export async function analyzeDocumentWithPyworker(
     fileName,
     maxPages = 10,
     includePreviewImages = true,
-    timeoutMs = 70_000,
+    timeoutMs = 250_000,
+    signal,
     env = process.env,
     fetchImpl = globalThis.fetch,
   }: {
@@ -58,18 +59,21 @@ export async function analyzeDocumentWithPyworker(
     maxPages?: number;
     includePreviewImages?: boolean;
     timeoutMs?: number;
+    signal?: AbortSignal;
     env?: NodeJS.ProcessEnv;
     fetchImpl?: typeof globalThis.fetch;
   },
 ): Promise<OcrAnalysisResponse> {
   const { url, token } = resolvePyworkerOcrEndpoint(env);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const combinedSignal = signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal;
   let response: Response;
   try {
     response = await fetchImpl(url, {
       method: "POST",
       redirect: "manual",
       cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: combinedSignal,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/octet-stream",

@@ -89,7 +89,10 @@ export async function POST(request: Request) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!detectOcrFileKind(bytes)) return fail("unsupportedMediaType", 415);
 
-    const result = await analyzeDocumentWithPyworker(bytes, { fileName: name });
+    const result = await analyzeDocumentWithPyworker(bytes, {
+      fileName: name,
+      signal: request.signal,
+    });
     return jsonNoStore(result, 200);
   } catch (error) {
     if (error instanceof OcrWorkerError) return fail(error.code, error.httpStatus);

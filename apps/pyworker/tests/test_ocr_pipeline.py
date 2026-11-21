@@ -25,7 +25,12 @@ from pyworker.ocr.interfaces import (
     UnsupportedMediaError,
 )
 from pyworker.ocr.line_grouper import group_boxes_into_lines
-from pyworker.ocr.ollama_recognizer import OllamaLineRecognizer, parse_vlm_line_payload
+from pyworker.ocr.ollama_recognizer import (
+    OllamaLineRecognizer,
+    parse_numbered_vlm_payload,
+    parse_vlm_line_payload,
+    parse_vlm_page_payload,
+)
 from pyworker.ocr.pipeline import OcrPipeline
 from pyworker.ocr.stamp_parser import parse_stamp_metadata
 from pyworker.ocr.word_detector import MorphologicalWordDetector
@@ -179,6 +184,67 @@ class OcrPureLogicTests(unittest.TestCase):
         self.assertTrue(all(w.confidence <= 0.75 for w in split))
         self.assertEqual(split[0].bbox[0] + split[0].bbox[2], split[1].bbox[0])
 
+        # DP block-merging: split fragments BYD + GOSZCZ merge into BYDGOSZCZ, date stays separate.
+        byd_line = GroupedLine(
+            line_id="p0_l2",
+            zone="handwriting",
+            bbox=(100, 80, 740, 80),
+            boxes=[
+                DetectedBox((100, 80, 140, 80)),  # BYD
+                DetectedBox((258, 80, 220, 80)),  # GOSZCZ (small intra-word gap 18px)
+                DetectedBox((520, 80, 90, 80)),  # 09. (wide inter-word gap 42px)
+                DetectedBox((622, 80, 90, 80)),  # 01.
+                DetectedBox((724, 80, 116, 80)),  # 2026
+            ],
+        )
+        byd_aligned = align_line_words(
+            byd_line,
+            RecognizedLine(
+                text="BYDGOSZCZ 09.01.2026",
+                tokens=[
+                    RecognizedToken("BYDGOSZCZ", 0.90),
+                    RecognizedToken("09.01.2026", 0.92),
+                ],
+            ),
+            page_index=0,
+            start_word_index=0,
+        )
+        self.assertEqual(len(byd_aligned), 2)
+        self.assertEqual(byd_aligned[0].bbox, (100, 80, 378, 80))
+        self.assertEqual(byd_aligned[1].bbox, (520, 80, 320, 80))
+
+        # DP split: only the glued box [W BYDGOSZCZY] splits, leaving other word boxes intact.
+        glued_line = GroupedLine(
+            line_id="p0_l3",
+            zone="handwriting",
+            bbox=(100, 200, 1100, 80),
+            boxes=[
+                DetectedBox((100, 200, 260, 80)),  # PRZYBYŁO
+                DetectedBox((390, 200, 420, 80)),  # W BYDGOSZCZY
+                DetectedBox((840, 200, 100, 80)),  # OD
+                DetectedBox((970, 200, 230, 80)),  # CZASU
+            ],
+        )
+        glued_aligned = align_line_words(
+            glued_line,
+            RecognizedLine(
+                text="PRZYBYŁO W BYDGOSZCZY OD CZASU",
+                tokens=[
+                    RecognizedToken("PRZYBYŁO", 0.85),
+                    RecognizedToken("W", 0.85),
+                    RecognizedToken("BYDGOSZCZY", 0.85),
+                    RecognizedToken("OD", 0.85),
+                    RecognizedToken("CZASU", 0.85),
+                ],
+            ),
+            page_index=0,
+            start_word_index=0,
+        )
+        self.assertEqual(len(glued_aligned), 5)
+        self.assertEqual(glued_aligned[0].bbox, (100, 200, 260, 80))
+        self.assertEqual(glued_aligned[3].bbox, (840, 200, 100, 80))
+        self.assertEqual(glued_aligned[4].bbox, (970, 200, 230, 80))
+
     def test_stamp_parser_extracts_iso_date_and_registry(self):
         meta = parse_stamp_metadata(
             [
@@ -208,6 +274,30 @@ class OcrPureLogicTests(unittest.TestCase):
         parsed = parse_vlm_line_payload(payload)
         self.assertEqual(parsed.tokens[0].text, "PRZYBYŁO")
         self.assertAlmostEqual(parsed.tokens[0].confidence, 0.88)
+
+        page_lines = parse_vlm_page_payload(
+            json.dumps(
+                {
+                    "lines": [
+                        {"text": "ILE PUNKTÓW SPRZEDAŻY ALKOHOLU", "confidence": 0.91},
+                        {"text": "PRZYBYŁO W BYDGOSZCZY", "confidence": 0.85},
+                    ]
+                }
+            ),
+            expected_lines=2,
+        )
+        self.assertEqual(len(page_lines), 2)
+        self.assertEqual([t.text for t in page_lines[1].tokens], ["PRZYBYŁO", "W", "BYDGOSZCZY"])
+
+        numbered = parse_numbered_vlm_payload(
+            "[1] PREZYDENT BYDGOSZCZY\n[3] ODPOWIEDŹ W TRYBIE",
+            expected_lines=3,
+            fallback_drafts=[("PREZYUENT", 0.8), ("ILE PUNKTÓW", 0.78), ("OPBOWIEDL", 0.72)],
+        )
+        self.assertEqual(len(numbered), 3)
+        self.assertEqual(numbered[0].text, "PREZYDENT BYDGOSZCZY")
+        self.assertEqual(numbered[1].text, "ILE PUNKTÓW")
+        self.assertEqual(numbered[2].text, "ODPOWIEDŹ W TRYBIE")
 
     def test_ollama_recognizer_mock_transport_and_errors(self):
         import numpy as np

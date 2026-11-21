@@ -17,14 +17,17 @@ def _union_bbox(boxes: list[DetectedBox]) -> tuple[int, int, int, int]:
 def _same_line(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
     ay0, ah = a[1], a[3]
     by0, bh = b[1], b[3]
+    min_h = max(1, min(ah, bh))
+    max_h = max(ah, bh)
+    if max_h / min_h > 2.2:
+        return False
     ay1, by1 = ay0 + ah, by0 + bh
     overlap = min(ay1, by1) - max(ay0, by0)
-    min_h = max(1, min(ah, bh))
     if overlap / min_h >= 0.42:
         return True
     ac = ay0 + ah / 2.0
     bc = by0 + bh / 2.0
-    return abs(ac - bc) <= min_h * 0.55
+    return abs(ac - bc) <= min_h * 0.42
 
 
 def _detect_stamp_regions(image_rgb: Any) -> list[tuple[int, int, int, int]]:
@@ -45,8 +48,8 @@ def _detect_stamp_regions(image_rgb: Any) -> list[tuple[int, int, int, int]]:
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
         area_ratio = (w * h) / (width * height)
-        # Typical Kancelaria stamp or barcode sticker: upper 45% of page, 1.5%-15% page area.
-        if y > height * 0.45:
+        # Typical Kancelaria stamp or barcode sticker: upper 35% of page, 1.5%-15% page area.
+        if y > height * 0.35:
             continue
         if not (0.015 <= area_ratio <= 0.16):
             continue
@@ -100,14 +103,27 @@ def group_boxes_into_lines(
     lines: list[GroupedLine] = []
     for zone, cluster_boxes in clusters:
         ordered = sorted(cluster_boxes, key=lambda item: item.bbox[0])
-        lines.append(
-            GroupedLine(
-                line_id="",
-                zone=zone,
-                bbox=_union_bbox(ordered),
-                boxes=ordered,
+        # Split a horizontal Y-band into separate column segments when boxes are far apart
+        # (e.g., left barcode sticker vs right Kancelaria stamp, or left name vs right date).
+        segments: list[list[DetectedBox]] = [[ordered[0]]]
+        for nxt in ordered[1:]:
+            prev = segments[-1][-1]
+            gap = nxt.bbox[0] - (prev.bbox[0] + prev.bbox[2])
+            min_h = max(1, min(prev.bbox[3], nxt.bbox[3]))
+            max_col_gap = max(110, int(min_h * 2.6))
+            if gap > max_col_gap:
+                segments.append([nxt])
+            else:
+                segments[-1].append(nxt)
+        for seg in segments:
+            lines.append(
+                GroupedLine(
+                    line_id="",
+                    zone=zone,
+                    bbox=_union_bbox(seg),
+                    boxes=seg,
+                )
             )
-        )
 
     lines.sort(key=lambda line: (line.bbox[1], line.bbox[0]))
     for idx, line in enumerate(lines):

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const MAX_OCR_UPLOAD_BYTES = 10 * 1024 * 1024;
-export const MAX_OCR_RESPONSE_BYTES = 16 * 1024 * 1024;
+export const MAX_OCR_UPLOAD_BYTES = 20 * 1024 * 1024;
+export const MAX_OCR_RESPONSE_BYTES = 24 * 1024 * 1024;
 
 export const ocrZoneSchema = z.enum(["handwriting", "stamp", "printed"]);
 export const ocrSourceModeSchema = z.enum(["digital_text", "handwritten_ocr", "printed_ocr"]);

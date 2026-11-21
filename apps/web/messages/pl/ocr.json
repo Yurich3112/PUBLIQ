@@ -1,16 +1,16 @@
 {
   "ocr": {
     "title": "Weryfikator OCR pisma ręcznego i skanów",
-    "subtitle": "Porównanie 1:1 skanu wniosku UDIP z transkrypcją lokalnego modelu Qwen2.5-VL-3B (bez wysyłki do chmury).",
+    "subtitle": "Porównanie 1:1 skanu wniosku UDIP z transkrypcją lokalnego modelu Ollama VLM (bez wysyłki do chmury).",
     "uploadButton": "Wgraj skan wniosku (PDF/PNG/JPG)",
     "uploadAnother": "Wgraj inny dokument",
     "confirmButton": "Zatwierdź tekst wniosku",
     "illegibleButton": "Skan nieczytelny — Wygeneruj wezwanie do uzupełnienia",
     "dropTitle": "Upuść skan wniosku UDIP tutaj",
-    "dropHint": "Obsługiwane formaty: PDF, PNG, JPEG (do 10 MiB). Kratka z papieru usuwana jest automatycznie.",
+    "dropHint": "Obsługiwane formaty: PDF, PNG, JPEG (do 20 MiB). Kratka z papieru usuwana jest automatycznie.",
     "processing": "Przetwarzanie OCR…",
     "processingFile": "Analiza dokumentu: {name}",
-    "processingStages": "Etap 1: usuwanie kratki OpenCV → Etap 2: detekcja słów [x, y, w, h] → Etap 3: rozpoznawanie Qwen2.5-VL-3B → Etap 4: mapowanie 1:1",
+    "processingStages": "Etap 1: usuwanie kratki OpenCV → Etap 2: detekcja bloków słów → Etap 3: rozpoznawanie całych wierszy (Ollama VLM) → Etap 4: scalanie ramek 1:1",
     "scanPaneLabel": "Podgląd skanu z ramkami słów",
     "transcriptionPaneLabel": "Panel transkrypcji i edycji",
     "transcriptionTitle": "Transkrypcja 1:1 (kliknij słowo, aby poprawić)",
@@ -74,11 +74,11 @@
     "errors": {
       "denied": "Brak uprawnień — zaloguj się ponownie.",
       "invalid": "Nieprawidłowy plik lub żądanie.",
-      "tooLarge": "Plik przekracza limit 10 MiB.",
+      "tooLarge": "Plik przekracza limit 20 MiB.",
       "unsupportedMediaType": "Obsługiwane są wyłącznie pliki PDF, PNG i JPEG.",
       "invalidDocument": "Dokument jest uszkodzony lub przekracza limit stron.",
       "busy": "Dla tego konta trwa już analiza OCR. Poczekaj chwilę.",
-      "unavailable": "Lokalny silnik OCR lub Ollama (qwen2.5vl:3b) jest niedostępny.",
+      "unavailable": "Lokalny silnik OCR lub Ollama jest niedostępny.",
       "timeout": "Przekroczono limit czasu analizy OCR. Spróbuj ponownie.",
       "failed": "Nie udało się przeanalizować dokumentu. Spróbuj ponownie."
     }

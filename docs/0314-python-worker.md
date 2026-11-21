@@ -103,7 +103,7 @@ Default address: `http://127.0.0.1:8010`.
 | `GET /health/ready` | Application startup completed; 503 otherwise |
 | `GET /health` | Readiness alias |
 | `POST /v1/tasks/check` | Authenticated deterministic diagnostic |
-| `POST /v1/tasks/ocr` | Authenticated local 5-stage handwritten/scanned OCR (`application/octet-stream`, up to 10 MiB) |
+| `POST /v1/tasks/ocr` | Authenticated local 5-stage handwritten/scanned OCR (`application/octet-stream`, up to 20 MiB) |
 
 Health responses contain `status`, `service`, `check` and sanitized `ocr` (`ready` or `degraded`), with no credentials.
 They use `Cache-Control: no-store` and request IDs. Readiness does not leak Ollama hostnames, ports, or tokens. Setup points `MONITOR_PYWORKER_URL`
@@ -112,13 +112,15 @@ of whether the administration page has automatic refresh enabled.
 
 ### Handwritten OCR task (`POST /v1/tasks/ocr`)
 
-Accepts raw PDF, PNG, or JPEG bytes (`Content-Type: application/octet-stream`, validated by leading magic bytes, max `PYWORKER_OCR_MAX_BYTES`, default 10 MiB) with optional `X-File-Name` and `X-OCR-Options` JSON headers. The pipeline runs 100% locally with zero cloud dependency:
+Accepts raw PDF, PNG, or JPEG bytes (`Content-Type: application/octet-stream`, validated by leading magic bytes, max `PYWORKER_OCR_MAX_BYTES`, default 20 MiB) with optional `X-File-Name` and `X-OCR-Options` JSON headers. For step-by-step GPU/CPU setup (RTX 3080 `gemma3:12b` or CPU `gemma3:4b`), see [Local OCR Verifier Setup](0319-ocr-local-setup.md). The pipeline runs 100% locally with zero cloud dependency:
 
 1. **Stage 0 (`pyworker.ocr.ingest`):** Magic-byte check, page cap (`PYWORKER_OCR_MAX_PAGES`), native selectable-text PDF fast-path (`source_mode: "digital_text"`), or 200 DPI rasterization.
-2. **Stage 1 (`pyworker.ocr.grid_eraser`):** OpenCV morphological graph-paper grid suppression preserving handwritten strokes and Kancelaria stamps.
-3. **Stage 2 (`pyworker.ocr.word_detector` + `line_grouper`):** Lightweight ONNX DBNet (`rapidocr`) word-box detector with horizontal gap splitting, reading-order line clustering, and `handwriting` / `stamp` / `printed` zone classification.
-4. **Stage 3 (`pyworker.ocr.ollama_recognizer`):** Local Ollama `POST /api/chat` (`PYWORKER_OLLAMA_URL`, loopback-only by default, model `PYWORKER_OCR_VLM_MODEL`, default `qwen2.5vl:3b`) reading lines in context.
-5. **Stage 4 (`pyworker.ocr.aligner` + `stamp_parser`):** 1:1 token-to-box alignment (`exact` / `merged_box` / `split_box`), Kancelaria stamp parsing (`received_date`, `registry_number`), and document legibility verdict (`legible` / `illegible_review_required`).
+2. **Stage 1 (`pyworker.ocr.grid_eraser`):** Skew-aware (`-3°..+3°`) OpenCV periodic graph-paper grid suppression preserving handwritten ink strokes and Kancelaria stamps in the original coordinate space.
+3. **Stage 2 (`pyworker.ocr.word_detector` + `line_grouper`):** Local ONNX `rapidocr` (`PP-OCRv6_det_small` + `PP-OCRv6_rec_small`) atomic sub-word chunk detector with bimodal gap splitting, column-aware Y-band line grouping, and `handwriting` / `stamp` / `printed` zone classification.
+4. **Stage 3 (`pyworker.ocr.ollama_recognizer`):** High-confidence printed/stamp lines (`>= 0.88`) pass directly from local ONNX; low-confidence and handwritten rows are stacked into a numbered `[1]..[N]` full-row strip and sent to local Ollama `POST /api/chat` (`PYWORKER_OLLAMA_URL`, loopback-only by default, model `PYWORKER_OCR_VLM_MODEL`, default `gemma3:4b`, recommended `gemma3:12b` on GPU) for whole-sentence Polish reconstruction.
+5. **Stage 4 (`pyworker.ocr.aligner` + `stamp_parser`):** Character-width and gap-aware DP block-merging (`exact` / `merged_box` / `split_box`, e.g., merging split `BYD` + `GOSZCZ` into `Bydgoszcz`), Kancelaria stamp parsing (`received_date`, `registry_number`), and document legibility verdict (`legible` / `illegible_review_required`).
+
+On Windows, `__main__.py` polls `PYWORKER_PARENT_CONTROL=stdin` via `kernel32.PeekNamedPipe` so idle parent-control listening never deadlocks native `numpy`/OpenBLAS DLL loads.
 
 OCR logs record only correlation metadata (`request_id`, `page_count`, `word_count`, `source_mode`, `duration_ms`) and never log raw document bytes, filenames, or transcribed text.
 
