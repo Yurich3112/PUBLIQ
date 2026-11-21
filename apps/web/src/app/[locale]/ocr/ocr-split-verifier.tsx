@@ -300,6 +300,14 @@ export function OcrSplitVerifier({
               </span>
               <span>{t("stats.edited", { count: Object.keys(editedWords).length })}</span>
               <span>{t("stats.duration", { ms: analysis.duration_ms })}</span>
+              <span className="inline-flex items-center gap-1.5 text-[11px]">
+                <span className="inline-block size-2.5 rounded-xs border-2 border-red-600 bg-red-500/25" />
+                {t("legend.low")}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[11px]">
+                <span className="inline-block size-2.5 rounded-xs border-2 border-blue-600 bg-blue-500/25" />
+                {t("inspector.selected")}
+              </span>
             </div>
             <span className="font-mono text-[11px]">
               {analysis.engine.detector} · {analysis.engine.recognizer}

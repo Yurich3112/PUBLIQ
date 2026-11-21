@@ -227,21 +227,13 @@ export function TranscriptionPane({
       aria-label={t("transcriptionPaneLabel")}
       className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface"
     >
-      {/* Fixed min-h-12 header bar matching ScanCanvas so both document sheets sit at the exact same Y level */}
-      <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <h2 className="font-semibold text-foreground">{t("transcriptionTitle")}</h2>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="inline-block size-2.5 rounded-xs border-2 border-red-600 bg-red-500/25" />
-            {t("legend.low")}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="inline-block size-2.5 rounded-xs border-2 border-blue-600 bg-blue-500/25" />
-            {t("inspector.selected")}
-          </span>
-        </div>
+      {/* Fixed h-12 single-line header bar matching ScanCanvas so both document sheets sit at the exact same Y level */}
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border px-3">
+        <h2 className="min-w-0 truncate text-xs font-semibold text-foreground">
+          {t("transcriptionTitle")}
+        </h2>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {selectedWord && editingWordId !== selectedWord.id && (
             <Button size="sm" tone="ghost" onClick={() => beginEdit(selectedWord)}>
               <PencilSquare aria-hidden="true" className="size-3.5" />

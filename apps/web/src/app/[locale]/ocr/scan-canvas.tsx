@@ -47,20 +47,20 @@ export function ScanCanvas({
 
   return (
     <section aria-label={t("scanPaneLabel")} className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface">
-      <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>{t("pageIndicator", { current: page.page_index + 1, total: pageCount })}</span>
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border px-3">
+        <div className="flex min-w-0 items-center gap-2 truncate text-xs font-medium text-muted-foreground">
+          <span className="truncate">{t("pageIndicator", { current: page.page_index + 1, total: pageCount })}</span>
           {page.grid_removed && (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
               {t("gridErasedBadge")}
             </span>
           )}
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
+          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">
             {t(`sourceMode.${page.source_mode}`)}
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {pageCount > 1 && (
             <div className="mr-2 flex items-center gap-1">
               <IconButton
@@ -111,7 +111,7 @@ export function ScanCanvas({
 
       <div ref={containerRef} className="flex-1 overflow-auto bg-neutral-950/5 p-4 dark:bg-neutral-950/40">
         <div
-          className="relative mx-auto shadow-md"
+          className="relative mx-auto overflow-hidden rounded-xs border border-neutral-300 bg-white shadow-md dark:border-neutral-700"
           style={{
             width: `${zoom}%`,
             maxWidth: `${Math.round((page.width * zoom) / 100)}px`,
