@@ -13,8 +13,8 @@
     "processingStages": "Stage 1: OpenCV grid eraser → Stage 2: atomic word blocks → Stage 3: whole-row Ollama VLM → Stage 4: 1:1 DP box merging",
     "scanPaneLabel": "Document scan preview with word bounding boxes",
     "transcriptionPaneLabel": "Editable transcription pane",
-    "transcriptionTitle": "1:1 Transcription (click any word to edit)",
-    "transcriptionHint": "Hovering or clicking a word highlights its exact bounding box on the scan. Press Alt+N to jump to the next uncertain word.",
+    "transcriptionTitle": "1:1 Document Reproduction (click any word to edit)",
+    "transcriptionHint": "Clicking a word highlights it on both the scan and the 1:1 reproduced document. Red low-confidence words clear once edited by the clerk (Alt+N — next uncertain).",
     "nextUncertain": "Next uncertain (Alt+N)",
     "pageIndicator": "Page {current} of {total}",
     "gridErasedBadge": "Grid erased",
@@ -39,7 +39,7 @@
     "legend": {
       "high": "High confidence (≥80%)",
       "uncertain": "Uncertain (50–79%)",
-      "low": "Very low (<50%)",
+      "low": "Low confidence — needs review (<80%)",
       "stamp": "Kancelaria stamp"
     },
     "stamp": {

@@ -5,17 +5,9 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "react-bootstrap-icons";
 import type { OcrPage, OcrWord } from "@/schemas/ocr";
 import { Button, IconButton } from "@/ui/basic";
-import { getWordDisplayText, getWordTier, type ConfidenceTier } from "./ocr-helpers";
+import { getWordDisplayText, isWordUncertain } from "./ocr-helpers";
 
 const ZOOM_STEPS = [50, 75, 100, 125, 150, 200] as const;
-
-const tierBoxStyle: Record<ConfidenceTier, { stroke: string; fill: string; dash?: string; width: number }> = {
-  high: { stroke: "#15803d", fill: "rgba(22, 163, 74, 0.10)", width: 2 },
-  verified: { stroke: "#0f766e", fill: "rgba(20, 184, 166, 0.14)", width: 2.5 },
-  medium: { stroke: "#d97706", fill: "rgba(245, 158, 11, 0.18)", dash: "6 3", width: 2.5 },
-  low: { stroke: "#dc2626", fill: "rgba(239, 68, 68, 0.22)", dash: "3 2", width: 3 },
-  stamp: { stroke: "#2563eb", fill: "rgba(37, 99, 235, 0.12)", dash: "2 3", width: 2 },
-};
 
 export function ScanCanvas({
   page,
@@ -23,10 +15,8 @@ export function ScanCanvas({
   zoom,
   onZoomChange,
   onPageChange,
-  hoveredWordId,
   selectedWordId,
   editedWords,
-  onHoverWord,
   onSelectWord,
 }: {
   page: OcrPage;
@@ -34,23 +24,22 @@ export function ScanCanvas({
   zoom: number;
   onZoomChange: (next: number) => void;
   onPageChange: (nextIndex: number) => void;
-  hoveredWordId: string | null;
   selectedWordId: string | null;
   editedWords: Readonly<Record<string, string>>;
-  onHoverWord: (wordId: string | null) => void;
   onSelectWord: (word: OcrWord) => void;
 }) {
   const t = useTranslations("ocr");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const activeId = selectedWordId ?? hoveredWordId;
-    if (!activeId || !containerRef.current) return;
-    const target = containerRef.current.querySelector<SVGRectElement>(`[data-word-box="${CSS.escape(activeId)}"]`);
+    if (!selectedWordId || !containerRef.current) return;
+    const target = containerRef.current.querySelector<SVGRectElement>(
+      `[data-word-box="${CSS.escape(selectedWordId)}"]`,
+    );
     if (target) {
       target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
     }
-  }, [selectedWordId, hoveredWordId]);
+  }, [selectedWordId]);
 
   const zoomIdx = ZOOM_STEPS.indexOf(zoom as (typeof ZOOM_STEPS)[number]);
   const canZoomOut = zoomIdx > 0;
@@ -120,22 +109,14 @@ export function ScanCanvas({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-4 border-b border-border/70 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border border-emerald-700 bg-emerald-500/20" />
-          {t("legend.high")}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border border-dashed border-amber-600 bg-amber-500/25" />
-          {t("legend.uncertain")}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border border-red-600 bg-red-500/25" />
+          <span className="inline-block size-2.5 rounded-xs border-2 border-red-600 bg-red-500/25" />
           {t("legend.low")}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block size-2.5 rounded-xs border border-dotted border-blue-600 bg-blue-500/20" />
-          {t("legend.stamp")}
+          <span className="inline-block size-2.5 rounded-xs border-2 border-blue-600 bg-blue-500/25" />
+          {t("inspector.selected")}
         </span>
       </div>
 
@@ -171,10 +152,22 @@ export function ScanCanvas({
           >
             {page.words.map(word => {
               const [x, y, w, h] = word.bbox;
-              const tier = getWordTier(word, editedWords);
-              const style = tierBoxStyle[tier];
-              const isActive = word.id === selectedWordId || word.id === hoveredWordId;
+              const isSelected = word.id === selectedWordId;
+              const isLowConfidenceUnedited = isWordUncertain(word, editedWords);
               const displayText = getWordDisplayText(word, editedWords);
+
+              const fill = isSelected
+                ? "rgba(37, 99, 235, 0.26)"
+                : isLowConfidenceUnedited
+                  ? "rgba(239, 68, 68, 0.20)"
+                  : "transparent";
+              const stroke = isSelected
+                ? "#1d4ed8"
+                : isLowConfidenceUnedited
+                  ? "#dc2626"
+                  : "transparent";
+              const strokeWidth = isSelected ? 3.5 : isLowConfidenceUnedited ? 2.5 : 0;
+
               return (
                 <g key={word.id}>
                   <rect
@@ -184,14 +177,11 @@ export function ScanCanvas({
                     width={w}
                     height={h}
                     rx={3}
-                    fill={isActive ? "rgba(37, 99, 235, 0.28)" : style.fill}
-                    stroke={isActive ? "#1d4ed8" : style.stroke}
-                    strokeWidth={isActive ? style.width + 2 : style.width}
-                    strokeDasharray={isActive ? undefined : style.dash}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={strokeWidth}
                     vectorEffect="non-scaling-stroke"
-                    className="cursor-pointer transition-opacity"
-                    onMouseEnter={() => onHoverWord(word.id)}
-                    onMouseLeave={() => onHoverWord(null)}
+                    className="cursor-pointer"
                     onClick={() => onSelectWord(word)}
                   >
                     <title>{`${displayText} (${Math.round(word.confidence * 100)}%)`}</title>

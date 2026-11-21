@@ -45,7 +45,6 @@ export function OcrSplitVerifier({
 
   const [pageIndex, setPageIndex] = useState(0);
   const [zoom, setZoom] = useState(100);
-  const [hoveredWordId, setHoveredWordId] = useState<string | null>(null);
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [editedWords, setEditedWords] = useState<Record<string, string>>({});
   const [receivedDate, setReceivedDate] = useState("");
@@ -108,7 +107,6 @@ export function OcrSplitVerifier({
       setAnalysis(parsed.data);
       setPageIndex(0);
       setZoom(100);
-      setHoveredWordId(null);
       setSelectedWordId(null);
       setEditedWords({});
       setReceivedDate(parsed.data.stamp_metadata.received_date ?? "");
@@ -301,24 +299,20 @@ export function OcrSplitVerifier({
                 setPageIndex(next);
                 setSelectedWordId(null);
               }}
-              hoveredWordId={hoveredWordId}
               selectedWordId={selectedWordId}
               editedWords={editedWords}
-              onHoverWord={setHoveredWordId}
               onSelectWord={handleSelectWord}
             />
 
             <TranscriptionPane
               page={activePage}
+              zoom={zoom}
               receivedDate={receivedDate}
               registryNumber={registryNumber}
-              rawStampLines={analysis.stamp_metadata.raw_stamp_lines}
-              hoveredWordId={hoveredWordId}
               selectedWordId={selectedWordId}
               editedWords={editedWords}
               onReceivedDateChange={setReceivedDate}
               onRegistryNumberChange={setRegistryNumber}
-              onHoverWord={setHoveredWordId}
               onSelectWord={handleSelectWord}
               onEditWord={handleEditWord}
               onJumpNextUncertain={handleJumpNextUncertain}

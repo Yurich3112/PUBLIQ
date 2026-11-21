@@ -2,44 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check2Circle, ExclamationTriangle, PencilSquare } from "react-bootstrap-icons";
+import { ExclamationTriangle, PencilSquare } from "react-bootstrap-icons";
 import type { OcrPage, OcrWord } from "@/schemas/ocr";
 import { Button, Input } from "@/ui/basic";
-import { getWordDisplayText, getWordTier, type ConfidenceTier } from "./ocr-helpers";
-
-const chipStyles: Record<ConfidenceTier, string> = {
-  high: "border-emerald-600/40 bg-emerald-500/10 text-foreground hover:border-emerald-600",
-  verified: "border-teal-600/60 bg-teal-500/15 text-foreground font-medium",
-  medium: "border-dashed border-amber-600 bg-amber-500/15 text-foreground hover:bg-amber-500/25",
-  low: "border-2 border-red-600 bg-red-500/15 text-foreground hover:bg-red-500/25",
-  stamp: "border-dotted border-blue-600/60 bg-blue-500/10 text-blue-900 dark:text-blue-200",
-};
+import { getWordDisplayText, isWordUncertain } from "./ocr-helpers";
 
 export function TranscriptionPane({
   page,
+  zoom,
   receivedDate,
   registryNumber,
-  rawStampLines,
-  hoveredWordId,
   selectedWordId,
   editedWords,
   onReceivedDateChange,
   onRegistryNumberChange,
-  onHoverWord,
   onSelectWord,
   onEditWord,
   onJumpNextUncertain,
 }: {
   page: OcrPage;
+  zoom: number;
   receivedDate: string;
   registryNumber: string;
-  rawStampLines: readonly string[];
-  hoveredWordId: string | null;
   selectedWordId: string | null;
   editedWords: Readonly<Record<string, string>>;
   onReceivedDateChange: (value: string) => void;
   onRegistryNumberChange: (value: string) => void;
-  onHoverWord: (wordId: string | null) => void;
   onSelectWord: (word: OcrWord) => void;
   onEditWord: (wordId: string, nextText: string) => void;
   onJumpNextUncertain: () => void;
@@ -47,12 +35,10 @@ export function TranscriptionPane({
   const t = useTranslations("ocr");
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState("");
-  const [showStampLines, setShowStampLines] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sheetContainerRef = useRef<HTMLDivElement>(null);
 
   const wordMap = new Map(page.words.map(word => [word.id, word]));
-  const bodyLines = page.lines.filter(line => line.zone !== "stamp");
-  const stampLines = page.lines.filter(line => line.zone === "stamp");
 
   useEffect(() => {
     if (editingWordId && inputRef.current) {
@@ -60,6 +46,16 @@ export function TranscriptionPane({
       inputRef.current.select();
     }
   }, [editingWordId]);
+
+  useEffect(() => {
+    if (!selectedWordId || !sheetContainerRef.current) return;
+    const target = sheetContainerRef.current.querySelector<HTMLElement>(
+      `[data-word-token="${CSS.escape(selectedWordId)}"]`,
+    );
+    if (target) {
+      target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    }
+  }, [selectedWordId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -72,7 +68,7 @@ export function TranscriptionPane({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onJumpNextUncertain]);
 
-  function beginEdit(word: OcrWord) {
+  function handleClickWord(word: OcrWord) {
     onSelectWord(word);
     setEditingWordId(word.id);
     setDraftValue(getWordDisplayText(word, editedWords));
@@ -87,14 +83,17 @@ export function TranscriptionPane({
   const selectedWord = selectedWordId ? wordMap.get(selectedWordId) ?? null : null;
 
   return (
-    <section aria-label={t("transcriptionPaneLabel")} className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface">
+    <section
+      aria-label={t("transcriptionPaneLabel")}
+      className="flex min-h-[520px] flex-col rounded-xl border border-border bg-surface"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
         <div>
           <h2 className="text-sm font-semibold">{t("transcriptionTitle")}</h2>
           <p className="text-xs text-muted-foreground">{t("transcriptionHint")}</p>
         </div>
         <Button size="sm" tone="main-outline" onClick={onJumpNextUncertain}>
-          <ExclamationTriangle aria-hidden="true" className="size-3.5 text-amber-600" />
+          <ExclamationTriangle aria-hidden="true" className="size-3.5 text-red-600" />
           {t("nextUncertain")}
         </Button>
       </div>
@@ -102,7 +101,9 @@ export function TranscriptionPane({
       {/* Kancelaria stamp metadata chips */}
       <div className="grid grid-cols-1 gap-3 border-b border-border bg-blue-500/5 px-4 py-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-medium text-blue-900 dark:text-blue-200">{t("stamp.receivedDate")}</span>
+          <span className="font-medium text-blue-900 dark:text-blue-200">
+            {t("stamp.receivedDate")}
+          </span>
           <Input
             type="date"
             value={receivedDate}
@@ -111,7 +112,9 @@ export function TranscriptionPane({
           />
         </label>
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-medium text-blue-900 dark:text-blue-200">{t("stamp.registryNumber")}</span>
+          <span className="font-medium text-blue-900 dark:text-blue-200">
+            {t("stamp.registryNumber")}
+          </span>
           <Input
             type="text"
             value={registryNumber}
@@ -131,11 +134,12 @@ export function TranscriptionPane({
               {getWordDisplayText(selectedWord, editedWords)}
             </code>
             <span className="text-muted-foreground">
-              ({t("inspector.original")}: {selectedWord.text} · {Math.round(selectedWord.confidence * 100)}%)
+              ({t("inspector.original")}: {selectedWord.text} ·{" "}
+              {Math.round(selectedWord.confidence * 100)}%)
             </span>
           </div>
           {editingWordId !== selectedWord.id && (
-            <Button size="sm" tone="ghost" onClick={() => beginEdit(selectedWord)}>
+            <Button size="sm" tone="ghost" onClick={() => handleClickWord(selectedWord)}>
               <PencilSquare aria-hidden="true" className="size-3.5" />
               {t("editWord")}
             </Button>
@@ -143,112 +147,95 @@ export function TranscriptionPane({
         </div>
       )}
 
-      {/* Body lines with 1:1 interactive word tokens */}
-      <div className="flex-1 space-y-2.5 overflow-auto p-4">
-        {bodyLines.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("noBodyWords")}</p>
+      {/* 1:1 Spatial Document Reproduction Canvas */}
+      <div
+        ref={sheetContainerRef}
+        className="flex-1 overflow-auto bg-neutral-950/5 p-4 dark:bg-neutral-950/40"
+      >
+        {page.words.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">{t("noBodyWords")}</p>
         ) : (
-          bodyLines.map((line, lineIdx) => (
-            <div key={line.line_id} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/50 bg-background/60 p-2">
-              <span className="mr-1 select-none font-mono text-[11px] text-muted-foreground">
-                {lineIdx + 1}.
-              </span>
-              {line.word_ids.map(wordId => {
-                const word = wordMap.get(wordId);
-                if (!word) return null;
-                const tier = getWordTier(word, editedWords);
-                const isActive = word.id === selectedWordId || word.id === hoveredWordId;
-                const displayText = getWordDisplayText(word, editedWords);
+          <div
+            className="relative mx-auto overflow-hidden rounded-xs border border-neutral-300 bg-white text-neutral-900 shadow-md dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+            style={{
+              containerType: "inline-size",
+              width: `${zoom}%`,
+              maxWidth: `${Math.round((page.width * zoom) / 100)}px`,
+              aspectRatio: `${page.width} / ${page.height}`,
+            }}
+          >
+            {page.words.map(word => {
+              const [x, y, w, h] = word.bbox;
+              const leftPct = (x / page.width) * 100;
+              const topPct = (y / page.height) * 100;
+              const widthPct = (w / page.width) * 100;
+              const heightPct = (h / page.height) * 100;
+              const fontCqw = Math.max(0.85, Math.min(2.6, ((h * 0.52) / page.width) * 100));
 
-                if (editingWordId === word.id) {
-                  return (
-                    <input
-                      key={word.id}
-                      ref={inputRef}
-                      type="text"
-                      value={draftValue}
-                      aria-label={t("editWordInput", { word: word.text })}
-                      onChange={event => setDraftValue(event.target.value)}
-                      onBlur={() => commitEdit(word.id)}
-                      onKeyDown={event => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          commitEdit(word.id);
-                        } else if (event.key === "Escape") {
-                          event.preventDefault();
-                          setEditingWordId(null);
-                        }
-                      }}
-                      className="min-w-[80px] rounded-md border-2 border-primary bg-background px-2 py-0.5 text-sm font-medium outline-none"
-                    />
-                  );
-                }
+              const isSelected = word.id === selectedWordId;
+              const isLowConfidenceUnedited = isWordUncertain(word, editedWords);
+              const displayText = getWordDisplayText(word, editedWords);
 
+              if (editingWordId === word.id) {
                 return (
-                  <button
+                  <input
                     key={word.id}
-                    type="button"
-                    data-word-token={word.id}
-                    onMouseEnter={() => onHoverWord(word.id)}
-                    onMouseLeave={() => onHoverWord(null)}
-                    onFocus={() => onHoverWord(word.id)}
-                    onBlur={() => onHoverWord(null)}
-                    onClick={() => beginEdit(word)}
-                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-sm transition ${chipStyles[tier]} ${
-                      isActive ? "ring-2 ring-blue-600 ring-offset-1" : ""
-                    }`}
-                  >
-                    <span>{displayText}</span>
-                    {tier === "verified" && (
-                      <Check2Circle aria-hidden="true" className="size-3.5 text-teal-700 dark:text-teal-300" />
-                    )}
-                    {(tier === "medium" || tier === "low") && (
-                      <span className="text-[10px] font-semibold opacity-80">
-                        {Math.round(word.confidence * 100)}%
-                      </span>
-                    )}
-                  </button>
+                    ref={inputRef}
+                    type="text"
+                    value={draftValue}
+                    aria-label={t("editWordInput", { word: word.text })}
+                    onChange={event => setDraftValue(event.target.value)}
+                    onBlur={() => commitEdit(word.id)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        commitEdit(word.id);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        setEditingWordId(null);
+                      }
+                    }}
+                    style={{
+                      left: `${leftPct}%`,
+                      top: `${topPct}%`,
+                      minWidth: `${Math.max(widthPct, 8)}%`,
+                      minHeight: `${heightPct}%`,
+                      fontSize: `clamp(11px, ${fontCqw}cqw, 22px)`,
+                    }}
+                    className="absolute z-30 rounded border-2 border-blue-600 bg-white px-1.5 py-0.5 font-medium text-neutral-950 shadow-lg outline-none dark:bg-neutral-800 dark:text-white"
+                  />
                 );
-              })}
-            </div>
-          ))
-        )}
+              }
 
-        {(stampLines.length > 0 || rawStampLines.length > 0) && (
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setShowStampLines(prev => !prev)}
-              className="text-xs font-medium text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
-            >
-              {showStampLines ? t("stamp.hideRaw") : t("stamp.showRaw", { count: Math.max(stampLines.length, rawStampLines.length) })}
-            </button>
-            {showStampLines && (
-              <div className="mt-2 space-y-1 rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5 text-xs text-muted-foreground">
-                {stampLines.length > 0
-                  ? stampLines.map(line => (
-                      <div key={line.line_id} className="flex flex-wrap gap-1">
-                        {line.word_ids.map(id => {
-                          const w = wordMap.get(id);
-                          if (!w) return null;
-                          return (
-                            <button
-                              key={w.id}
-                              type="button"
-                              onMouseEnter={() => onHoverWord(w.id)}
-                              onMouseLeave={() => onHoverWord(null)}
-                              onClick={() => onSelectWord(w)}
-                              className="rounded border border-dotted border-blue-600/50 px-1.5 py-0.5 text-blue-900 dark:text-blue-200"
-                            >
-                              {w.text}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ))
-                  : rawStampLines.map((raw, idx) => <div key={idx}>{raw}</div>)}
-              </div>
-            )}
+              const stateClasses = isSelected
+                ? "z-20 rounded-xs border-2 border-blue-600 bg-blue-500/20 px-0.5 font-semibold text-blue-950 ring-2 ring-blue-600/40 dark:text-blue-100"
+                : isLowConfidenceUnedited
+                  ? "z-10 rounded-xs border border-red-600 bg-red-500/18 px-0.5 font-medium text-red-950 dark:border-red-500 dark:bg-red-500/25 dark:text-red-100"
+                  : word.zone === "stamp"
+                    ? "text-neutral-500 dark:text-neutral-400"
+                    : "text-neutral-900 dark:text-neutral-100";
+
+              return (
+                <button
+                  key={word.id}
+                  type="button"
+                  data-word-token={word.id}
+                  onClick={() => handleClickWord(word)}
+                  title={`${displayText} (${Math.round(word.confidence * 100)}%)`}
+                  style={{
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    minWidth: `${widthPct}%`,
+                    minHeight: `${heightPct}%`,
+                    fontSize: `clamp(9px, ${fontCqw}cqw, 22px)`,
+                    lineHeight: 1.05,
+                  }}
+                  className={`absolute flex cursor-pointer items-center text-left whitespace-nowrap transition-shadow select-none ${stateClasses}`}
+                >
+                  <span>{displayText}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

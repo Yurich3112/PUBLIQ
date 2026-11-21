@@ -13,8 +13,8 @@
     "processingStages": "Etap 1: usuwanie kratki OpenCV → Etap 2: detekcja bloków słów → Etap 3: rozpoznawanie całych wierszy (Ollama VLM) → Etap 4: scalanie ramek 1:1",
     "scanPaneLabel": "Podgląd skanu z ramkami słów",
     "transcriptionPaneLabel": "Panel transkrypcji i edycji",
-    "transcriptionTitle": "Transkrypcja 1:1 (kliknij słowo, aby poprawić)",
-    "transcriptionHint": "Najechanie lub kliknięcie słowa podświetla jego ramkę na skanie. Skrót Alt+N przechodzi do kolejnego niepewnego słowa.",
+    "transcriptionTitle": "Odwzorowanie 1:1 dokumentu (kliknij słowo, aby poprawić)",
+    "transcriptionHint": "Kliknięcie słowa podświetla je na skanie i w dokumencie 1:1. Czerwone słowa (niska pewność) przestają świecić po ręcznej korekcie (Alt+N — następne niepewne).",
     "nextUncertain": "Następne niepewne (Alt+N)",
     "pageIndicator": "Strona {current} z {total}",
     "gridErasedBadge": "Usunięto kratkę",
@@ -39,7 +39,7 @@
     "legend": {
       "high": "Wysoka pewność (≥80%)",
       "uncertain": "Niepewne (50–79%)",
-      "low": "Bardzo niskie (<50%)",
+      "low": "Niska pewność — do weryfikacji (<80%)",
       "stamp": "Pieczątka kancelarii"
     },
     "stamp": {
