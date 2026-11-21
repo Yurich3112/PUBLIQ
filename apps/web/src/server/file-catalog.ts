@@ -57,6 +57,8 @@ export async function deleteDocument(input: FileDelete, actorUuid: string): Prom
     `;
     if (!locked) return { status: "conflict" as const };
     if (await transaction.product.findFirst({ where: { imageFileUuid: uuid }, select: { uuid: true } })) return { status: "inUse" as const };
+    if (await transaction.udipDocument.findFirst({ where: { fileVersion: { fileUuid: uuid } }, select: { uuid: true } })) return { status: "inUse" as const };
+    if (await transaction.udipKnowledgeRecord.findFirst({ where: { fileVersion: { fileUuid: uuid } }, select: { uuid: true } })) return { status: "inUse" as const };
     if (!locked.deleting_at) {
       if (expectedVersion !== undefined) {
         const latest = await transaction.fileVersion.findFirst({

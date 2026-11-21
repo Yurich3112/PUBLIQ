@@ -203,6 +203,48 @@ Its readiness endpoint is `http://127.0.0.1:8010/health/ready` (`/health` is an 
 virtualenv and never install dependencies or update private environment files.
 See [all workspace commands](docs/0205-workspace-commands.md).
 
+## Local PLLuM model
+
+The 2.49 GB PLLuM 4B Instruct model (Q4_K_M GGUF) is available in two parts
+in the [GitHub release for `pllum-4b-instruct-2512-q4-k-m`](https://github.com/Yurich3112/asystent_hacknation2026_FFF/releases/tag/pllum-4b-instruct-2512-q4-k-m).
+The release keeps the large weights outside the Git checkout and includes
+instructions to reassemble the GGUF and verify its SHA-256 checksum.
+
+Once downloaded and reassembled, the model runs offline with `llama-server`.
+Local inference was verified at `http://127.0.0.1:8080/v1/chat/completions`.
+UDIP uses its own local client. In `apps/web/.env`, set
+`UDIP_PLLUM_URL=http://127.0.0.1:8080`, `UDIP_PLLUM_MODEL=pllum` and optionally
+`UDIP_PLLUM_TIMEOUT_MS=75000`. Run the model in a separate terminal:
+
+```powershell
+llama-server --model 'C:\path\to\pllum.gguf' --alias pllum --host 127.0.0.1 --port 8080 --ctx-size 16384
+```
+
+The application chat uses its existing OpenAI configuration.
+
+## Local UDIP PII and OCR
+
+Use Python 3.12 for the optional inference environment. From the repository root:
+
+```powershell
+pnpm pyworker:setup
+.\apps\pyworker\.venv\Scripts\python.exe -m pip install -r apps/pyworker/requirements-udip.txt
+```
+
+In `apps/pyworker/.env`, set `UDIP_PII_MODEL_DIR` to the absolute path of the
+[pinned PII-Tracer checkout](docs/UDIP_COMPLETE_IDEA.md#download-pii-tracer-for-local-development).
+For Polish OCR, extract the official
+[PP-OCRv5_server_det and latin_PP-OCRv5_mobile_rec inference models](https://www.paddleocr.ai/v3.4.1/en/version3.x/pipeline_usage/OCR.html)
+and set `UDIP_OCR_DET_MODEL_DIR` and `UDIP_OCR_REC_MODEL_DIR` to those local directories.
+Then run `pnpm dev:pyworker` and exercise the API in order using the
+[Stage 5 contracts](openspec/changes/establish-udip-backend-contract/design.md#stage-5-local-models).
+For cold model starts behind the local proxy, use the timeout settings in the
+[OCR setup guide](docs/0319-ocr-local-setup.md).
+An authorized clerk can open `/pl/udip/cases/{caseId}` to review the case
+documents and the sources for each saved draft point. Open a document to compare
+the original PDF with its transcription, retry OCR after an error, or save a
+manual correction as a new revision.
+
 ## Current acceptance scope
 
 Keycloak login, localized profile/role display and the administrator product/file

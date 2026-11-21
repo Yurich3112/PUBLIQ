@@ -1,0 +1,6 @@
+# Optional local inference for the prepared pyworker virtualenv (Python 3.12).
+torch>=2.5,<3
+transformers>=5.2,<6
+paddleocr>=3.4,<4
+paddlepaddle>=3.2,<4
+PyMuPDF>=1.26,<3

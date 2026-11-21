@@ -4,6 +4,160 @@ import { getLiveness, getReadiness } from '../../apps/web/src/server/health.ts';
 import { jsonNoStore } from '../../apps/web/src/server/http.ts';
 import { API_ROUTES } from '../../apps/web/src/config/api-routes.ts';
 import { readOpenAiReply, streamOpenAiChat } from '../../apps/web/src/server/openai-chat.ts';
+import { udipCaseListQuerySchema, udipMaxFileBytes } from '../../apps/web/src/schemas/udip.ts';
+import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
+import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
+import { applyUdipRedactions, suggestUdipRedactions } from '../../apps/web/src/server/udip/redaction.ts';
+import { rankUdipPrecedents } from '../../apps/web/src/server/udip/recommendations.ts';
+import { draftWithPllum, summarizeWithPllum } from '../../apps/web/src/server/udip/pllum.ts';
+
+test('UDIP PLLuM stays on loopback and preserves enumerated questions when the model merges them', async t => {
+  const previous = process.env.UDIP_PLLUM_URL;
+  t.after(() => {
+    if (previous === undefined) delete process.env.UDIP_PLLUM_URL;
+    else process.env.UDIP_PLLUM_URL = previous;
+  });
+  const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url.href, 'http://127.0.0.1:18085/v1/chat/completions');
+    assert.equal(options.redirect, 'error');
+    const { messages, response_format } = JSON.parse(options.body);
+    assert.equal(response_format.type, 'json_object');
+    assert.equal(response_format.schema.properties.questions.items.properties.dataSought.type, 'array');
+    const { enumeratedQuestions } = JSON.parse(messages[1].content);
+    assert.deepEqual(enumeratedQuestions, ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      topic: 'Przystanki', tags: ['transport'], dataSought: [], period: null, questions: [{ text: 'Koszty i liczba przystanków' }],
+    }) } }] });
+  });
+  const input = 'Proszę o odpowiedź. 1. Ile wyniósł koszt? 2. Ile przystanków powstało?';
+  process.env.UDIP_PLLUM_URL = 'https://example.com';
+  assert.equal(await summarizeWithPllum(input), null);
+  assert.equal(fetch.mock.callCount(), 0);
+  process.env.UDIP_PLLUM_URL = 'http://127.0.0.1:18085';
+  const summary = await summarizeWithPllum(input);
+  assert.deepEqual(summary.questions.map(question => question.text), ['Ile wyniósł koszt?', 'Ile przystanków powstało?']);
+});
+
+test('UDIP PLLuM drafts only points with evidence and receives questions from the confirmed copy', async t => {
+  const previous = process.env.UDIP_PLLUM_URL;
+  process.env.UDIP_PLLUM_URL = 'http://127.0.0.1:18085';
+  t.after(() => {
+    if (previous === undefined) delete process.env.UDIP_PLLUM_URL;
+    else process.env.UDIP_PLLUM_URL = previous;
+  });
+  const question = 'Ile wyniósł koszt?';
+  const text = 'Koszt wyniósł 12500 zł.';
+  let generated = { points: [{ index: 0, text }] };
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const { messages, response_format } = JSON.parse(options.body);
+    const { points } = JSON.parse(messages[1].content);
+    assert.deepEqual(points, [{ index: 0, question, evidence: [text] }]);
+    assert.ok(!messages[1].content.includes('13.10.2026'));
+    assert.equal(response_format.schema.properties.points.maxItems, 1);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(generated) } }] });
+  });
+  const request = `1. ${question}\n2. Jaki jest termin?\nData pisma: 13.10.2026`;
+  const supported = [{ index: 0, question, evidence: [text] }];
+  assert.deepEqual(await draftWithPllum(request, supported, []), generated);
+  generated = { points: [{ index: 1, text: 'Termin to 13.10.2026.' }] };
+  assert.equal(await draftWithPllum(request, supported, []), null);
+});
+
+test('UDIP matches questions independently, reports another period and exposes no historical amounts', () => {
+  const requested = { from: '2026-01-01', to: '2026-12-31' };
+  const precedent = { from: '2025-01-01', to: '2025-12-31' };
+  const transport = { id: 'transport', text: 'Koszty utrzymania przystanków', period: null, dataSought: ['koszty'] };
+  const insurance = { id: 'insurance', text: 'Składki emerytalne', period: null, dataSought: ['ubezpieczenie'] };
+  const summary = { topic: 'Komunikacja miejska', tags: ['transport'], dataSought: [], period: requested, questions: [transport, insurance] };
+  const unit = { kind: 'department', departmentCode: 'TRANSPORT', departmentName: 'Transport' };
+  const data = { summary: { ...summary, period: precedent, questions: [{ ...transport, text: `${transport.text} 58 231,99` }] },
+    units: [], questionUnits: [{ questionId: transport.id, units: [unit] }], caseSignature: 'BKS.IV.1431.7.2025' };
+  const [match, miss] = rankUdipPrecedents(summary, [{ id: 'record', title: 'Przystanki', sourceName: 'Archiwum', version: 1, data }]);
+  assert.equal(match.suggestedUnits[0].unit.departmentCode, 'TRANSPORT');
+  assert.equal(match.similarCases[0].source.caseSignature, 'BKS.IV.1431.7.2025');
+  assert.deepEqual(match.similarCases[0].periodDifference, { requested, precedent });
+  assert.equal(JSON.stringify(match).includes('231,99'), false);
+  assert.equal(miss.requiresManualSelection, true);
+  assert.equal(miss.suggestedUnits.length, 0);
+});
+
+test('UDIP redaction removes selected occurrences and merges overlapping UTF-16 ranges after emoji', () => {
+  const address = 'kontakt@example.org';
+  const text = `\u{1F600} ${address} / ${address} / SECRET`;
+  const first = text.indexOf(address);
+  const custom = text.indexOf('SECRET');
+  const suggestions = suggestUdipRedactions(text);
+  assert.equal(first, 3);
+  assert.deepEqual(suggestions.filter(item => item.kind === 'email').map(item => text.slice(...item.range)), [address, address]);
+  assert.deepEqual(applyUdipRedactions(text, [[custom, text.length], [first + 3, first + address.length], [first, first + 5]]), {
+    ranges: [[first, first + address.length], [custom, text.length]], text: `\u{1F600}  / ${address} / `,
+  });
+  assert.equal(applyUdipRedactions(text, [[1, 2]]), null);
+  assert.equal(applyUdipRedactions(text, [[0, 1]]), null);
+  assert.equal(applyUdipRedactions(text, [[0, text.length + 1]]), null);
+});
+
+test('UDIP rule suggestions are separate from confirmed redactions', () => {
+  const text = 'PESEL 02070803628. E-mail kontakt@example.org. Telefon +48 123 456 789.';
+  assert.deepEqual(suggestUdipRedactions(text).map(({ kind, range }) => [kind, text.slice(...range)]), [
+    ['pesel', '02070803628'], ['email', 'kontakt@example.org'], ['phone', '+48 123 456 789'],
+  ]);
+  assert.deepEqual(applyUdipRedactions(text, []), { ranges: [], text });
+});
+
+function udipUpload({ dates = ['2026-11-21', '2026-12-05'], name = 'wniosek.pdf', bytes = '%PDF-1.7\n', duplicate = false } = {}) {
+  const form = new FormData();
+  form.set('clientRequestId', '9f3a4089-8379-4834-b6bf-58e2ef184b97');
+  form.set('receivedDate', dates[0]);
+  form.set('dueDate', dates[1]);
+  form.set('file', new Blob([bytes]), name);
+  if (duplicate) form.append('file', new Blob([bytes]), name);
+  return new Request(`http://localhost${API_ROUTES.udip.cases}`, { method: 'POST', body: form });
+}
+
+test('UDIP intake validates calendar dates and the file format without trusting MIME headers', async () => {
+  const result = await readUdipUpload(udipUpload());
+  assert.equal(result.status, 'ok');
+  assert.equal(result.upload.file.mediaType, 'application/pdf');
+  assert.equal(result.upload.metadata.receivedDate, '2026-11-21');
+  assert.equal((await readUdipUpload(udipUpload({ dates: ['2026-02-29', '2026-03-01'] }))).status, 'invalid');
+  assert.equal((await readUdipUpload(udipUpload({ dates: ['2026-11-21', '2026-11-20'] }))).status, 'invalid');
+  assert.equal((await readUdipUpload(udipUpload({ name: 'wniosek.docx', bytes: 'PK\x03\x04' }))).status, 'unsupportedMediaType');
+  assert.equal((await readUdipUpload(udipUpload({ duplicate: true }))).status, 'invalid');
+  assert.equal(udipCaseListQuerySchema.safeParse({ limit: '101' }).success, false);
+});
+
+test('UDIP intake bounds uploads even when Content-Length is missing', async () => {
+  const request = new Request('http://localhost/api/v1/udip/cases', {
+    method: 'POST', duplex: 'half', headers: { 'Content-Type': 'multipart/form-data; boundary=test' },
+    body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(udipMaxFileBytes + 70_000)); } }),
+  });
+  assert.equal((await readUdipUpload(request)).status, 'tooLarge');
+});
+
+function udipPdf(pageText) {
+  const stream = pageText ? `BT /F1 14 Tf 72 720 Td (${pageText}) Tj ET` : '';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let data = '%PDF-1.4\n';
+  const offsets = objects.map((object, i) => {
+    const offset = data.length;
+    data += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    return `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  return new TextEncoder().encode(data + `xref\n0 6\n0000000000 65535 f \n${offsets.join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${data.length}\n%%EOF\n`);
+}
+
+test('UDIP reads a PDF text layer locally and distinguishes pages without text', async () => {
+  const file = { fileName: 'request.pdf', mediaType: 'application/pdf' };
+  assert.equal(await extractUdipText({ ...file, content: udipPdf('Current case evidence') }), 'Current case evidence');
+  assert.equal(await extractUdipText({ ...file, content: udipPdf('') }), null);
+});
 
 function providerStream(events) {
   const bytes = new TextEncoder().encode(events.map(event => `data: ${JSON.stringify(event)}\r\n\r\n`).join(''));

@@ -31,7 +31,7 @@ export type {
   Tag,
   FileTag,
   Product,
-  UdipCase,
+  UdipCalendarCase as UdipCase,
   UdipDepartmentQuery,
   KbCluster,
   KbNode,

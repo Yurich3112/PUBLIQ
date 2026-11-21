@@ -1342,8 +1342,8 @@ export async function seedKnowledgeGraph(
   });
   const nodeIdByKey = new Map(existingNodes.map(n => [n.externalKey, n.uuid]));
 
-  // Link archival CASE nodes to seeded UdipCase rows if present
-  const udipCases = await tx.udipCase.findMany({
+  // Link archival CASE nodes to seeded UdipCalendarCase rows if present
+  const udipCases = await tx.udipCalendarCase.findMany({
     where: { caseNumber: { in: SEED_NODES.filter(n => n.nodeType === KbNodeType.CASE).map(n => n.externalKey) } },
     select: { uuid: true, caseNumber: true },
   });

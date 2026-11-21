@@ -232,7 +232,7 @@ export function computeUdipCaseHealth(
   return { daysRemaining, healthColor, alerts };
 }
 
-type RawUdipCaseWithDepts = Prisma.UdipCaseGetPayload<{
+type RawUdipCaseWithDepts = Prisma.UdipCalendarCaseGetPayload<{
   include: { departmentQueries: true };
 }>;
 
@@ -718,7 +718,7 @@ export async function seedUdipCases(
   referenceDate: Date = new Date(),
 ): Promise<number> {
   const seedCases = buildBydgoszczSeedCases(referenceDate);
-  const existing = await tx.udipCase.findMany({
+  const existing = await tx.udipCalendarCase.findMany({
     where: { caseNumber: { in: seedCases.map(c => c.caseNumber) } },
     select: { caseNumber: true },
   });
@@ -728,7 +728,7 @@ export async function seedUdipCases(
   for (const item of seedCases) {
     if (existingSet.has(item.caseNumber)) continue;
     const { departments, ...caseFields } = item;
-    await tx.udipCase.create({
+    await tx.udipCalendarCase.create({
       data: {
         ...caseFields,
         createdByUuid: actorUuid ?? null,
@@ -755,7 +755,7 @@ export async function listUdipCases(
   const referenceDate = filter.referenceDate ?? new Date();
   const trimmedSearch = filter.search?.trim().replace(/[\\%_]/g, '\\$&') ?? '';
 
-  const where: Prisma.UdipCaseWhereInput = {
+  const where: Prisma.UdipCalendarCaseWhereInput = {
     ...(filter.year !== undefined ? { year: filter.year } : {}),
     ...(filter.processStatus !== undefined ? { processStatus: filter.processStatus } : {}),
     ...(trimmedSearch
@@ -771,7 +771,7 @@ export async function listUdipCases(
       : {}),
   };
 
-  const rows = await db.udipCase.findMany({
+  const rows = await db.udipCalendarCase.findMany({
     where,
     orderBy: [{ year: 'asc' }, { receivedDate: 'asc' }, { sequenceNumber: 'asc' }],
     include: {
@@ -807,7 +807,7 @@ export async function getUdipCase(
   referenceDate: Date = new Date(),
 ): Promise<UdipCaseRecord | null> {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
-  const row = await db.udipCase.findUnique({
+  const row = await db.udipCalendarCase.findUnique({
     where: isUuid ? { uuid: identifier } : { caseNumber: identifier },
     include: {
       departmentQueries: {
@@ -833,7 +833,7 @@ export async function createUdipCase(
 
     let sequenceNumber = input.sequenceNumber;
     if (!sequenceNumber) {
-      const aggregate = await tx.udipCase.aggregate({
+      const aggregate = await tx.udipCalendarCase.aggregate({
         where: { year },
         _max: { sequenceNumber: true },
       });
@@ -853,7 +853,7 @@ export async function createUdipCase(
       input.processStatus
       ?? (departments.length > 0 ? UdipProcessStatus.B : UdipProcessStatus.A);
 
-    const created = await tx.udipCase.create({
+    const created = await tx.udipCalendarCase.create({
       data: {
         caseNumber,
         year,
@@ -915,7 +915,7 @@ export async function updateUdipCase(
   input: UpdateUdipCaseInput,
   referenceDate: Date = new Date(),
 ): Promise<UdipCaseRecord | null> {
-  const existing = await db.udipCase.findUnique({ where: { uuid: caseUuid } });
+  const existing = await db.udipCalendarCase.findUnique({ where: { uuid: caseUuid } });
   if (!existing) return null;
 
   const nextStatus = input.processStatus ?? existing.processStatus;
@@ -928,7 +928,7 @@ export async function updateUdipCase(
         ? new Date()
         : existing.answeredDate;
 
-  const updated = await db.udipCase.update({
+  const updated = await db.udipCalendarCase.update({
     where: { uuid: caseUuid },
     data: {
       ...(input.processStatus !== undefined ? { processStatus: input.processStatus } : {}),
@@ -973,7 +973,7 @@ export async function upsertUdipDepartmentReply(
   referenceDate: Date = new Date(),
 ): Promise<UdipCaseRecord | null> {
   return db.$transaction(async tx => {
-    const parent = await tx.udipCase.findUnique({
+    const parent = await tx.udipCalendarCase.findUnique({
       where: { uuid: caseUuid },
       include: { departmentQueries: { orderBy: { sortOrder: 'asc' } } },
     });
@@ -1024,7 +1024,7 @@ export async function upsertUdipDepartmentReply(
     const allReplied =
       refreshedDepts.length > 0 && refreshedDepts.every(d => d.status === UdipDeptStatus.REPLIED);
 
-    const updatedParent = await tx.udipCase.update({
+    const updatedParent = await tx.udipCalendarCase.update({
       where: { uuid: caseUuid },
       data: {
         isMultiDepartment: refreshedDepts.length >= 2,

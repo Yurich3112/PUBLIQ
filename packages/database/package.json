@@ -23,6 +23,7 @@
     "db:deploy": "prisma migrate deploy --config prisma.config.ts",
     "db:status": "prisma migrate status --config prisma.config.ts",
     "db:seed": "prisma db seed --config prisma.config.ts",
+    "db:seed:udip-demo": "node --env-file-if-exists=.env prisma/seed-udip-demo.ts",
     "db:seed:execute": "pnpm build && node prisma/seed.ts",
     "db:seed:prepared": "node --env-file=.env prisma/seed.ts",
     "db:studio": "prisma studio --config prisma.config.ts --port 5555"

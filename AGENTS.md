@@ -37,20 +37,18 @@ For the complete domain blueprint, user flows, and mentor notes, read:
      - **Right Pane:** Transcribed text where every word corresponds 1:1 to a highlighted box on the scan. Low-confidence handwritten words glow amber/red for quick clerk editing.
    - **Illegible Scan Fallback:** If the handwriting is too illegible to understand (*nie wiadomo o co chodzi*), a 1-click button generates an official **Wezwanie do uzupełnienia / doprecyzowania wniosku (7 dni)**.
 
-3. **2-Tier Fast Knowledge Graph (`Baza Wiedzy`) ➡️ Local AI Fallback + Auto-Email/Redirect:**
-   - **Tier 1 — Lightweight JSON Summary Graph (`knowledge_graph.json`):** Stores compact (~200-token) nodes of all archival cases (`800+/year`), laws, and department responsibilities so we **never overflow the context window of a small local model**.
-   - **Path A (Twin Case Found in Graph):** When a clerk uploads a new request similar to an archival one (e.g., `599.2026` ↔ `307.2025` schools/foreigners; `543.2026` ↔ `293.2025` animal shelter), the graph instantaneously recommends the twin case, the verified department(s), and last year's response template.
-   - **Path B (New Topic / External Authority like ZUS, ZDMiKP, WKZ):** When no close graph match exists, the local AI analyzes the request against the department/institution registry:
-     - If the request belongs to an external institution (e.g., **ZUS**, **ZDMiKP**, **Wojewódzki Konserwator Zabytków**), the system alerts: *"UM Bydgoszcz nie jest dysponentem danych (Art. 4 ust. 3 UDIP)"* and offers **1-click automatic dispatch / generation of the redirection letter or email** instead of manual typing.
-     - If internal, it suggests the exact UM Bydgoszcz department(s) and can auto-send or pre-fill the internal inquiry mail.
-   - **Self-Learning Loop:** Completing a case (or an Admin uploading a document) appends a new summary node to `knowledge_graph.json`.
+3. **Anonymized Knowledge Base and Local Routing (`Baza Wiedzy`):**
+   - After the clerk confirms the intake redactions, local PLLuM produces a JSON summary with topic, tags, questions and periods. Next.js validates it, ranks approved anonymized PostgreSQL `jsonb` precedents per question in TypeScript and supplies only selected excerpts to PLLuM for drafting or advice.
+   - The clerk confirms the suggested route. The application tracks each confirmed department's reply independently and prepares a message draft for an external institution. The clerk sends it outside the application.
+   - Persist case state, draft versions and anonymized precedent links in PostgreSQL through Prisma. Administrators manage source versions and approve publication to matching.
 
 4. **Document Comparison, Draft Generation & Irreversible `PII-Tracer` Anonymization (No `Ctrl+Z`):**
    - **Department Input Flexibility:** Accepts department replies both as **PDF/DOCX attachments** and as **plain text pasted from an email**.
    - **Side-by-Side Comparison (`Porównanie dokumentów`):** Compare raw department replies / archival templates on the left with the generated official UM Bydgoszcz BKS letter (`Ad 1, Ad 2...`) on the right.
    - **Permanent PII Cleanup (`perplexity-ai/PII-Tracer` + 28 BKS Categories):**
-     - Scans the draft for any unredacted personal data left behind by institutions/departments.
-     - Highlights suggested PII in **Grey**; once accepted by the clerk, turns **Black** and is **permanently stripped/redacted** on export (`.docx` / `.txt`) with **no `Ctrl+Z` undo leak**.
+     - The local Python worker proposes PII ranges after OCR. The clerk edits the grey ranges and applies black redactions to a sanitized revision.
+     - Draft from the current case replies, using archived responses for form. Surface gaps and conflicting evidence. After the last edit, scan the entire letter and have the clerk review the suggested ranges.
+     - A supervisor approves the exact letter and redaction version before TXT export. Generate a fresh TXT with the confirmed values removed. Changes require fresh approval. The clerk records the actual dispatch date separately.
      - Includes a **Public Official Guard (Art. 5 ust. 2 UDIP)** so public figures (e.g., *Prezydent Rafał Bruski*, *Dyrektor Wydziału*) are not erroneously redacted.
 
 5. **Separate Admin Panel (`Panel Admina`) & Knowledge Base Placement Visualizer:**
@@ -67,7 +65,9 @@ To satisfy Requirement #1 & #8 (*"sprawdzić jaki realnie będzie potrzebny mode
 | :--- | :--- | :--- | :--- |
 | **PII & Anonymization** | **`perplexity-ai/PII-Tracer`** (`pplx-embed-v1-0.6b` Qwen3 bidirectional encoder) + Polish Legal Regex (28 BKS categories) | **~600M params** (~1.2 GB RAM/VRAM, runs on CPU) | Purpose-built BIOES token classifier (`private_person`, `private_address`, `private_email`, `private_phone`, `account_number`, `other_pii`) with 4096-token window. |
 | **Handwritten & Scan OCR** | **OpenCV Grid-Line Eraser** + **EasyOCR Word Detector** (`craft`) + **`Qwen2.5-VL-3B-Instruct` (Q4)** / **`TrOCR`** | **~110 MB – 2.2 GB** | Removes graph-paper lines (*kartka w kratkę*) in 5ms, extracts exact `[x, y, w, h]` word bounding boxes for the 1:1 split-screen UI, and transcribes Polish handwriting. |
-| **Draft Generation & Routing** | **`Bielik-11B-v2.3-Instruct` (Q4_K_M)** or **`Qwen2.5-7B-Instruct` (Q4_K_M)** (with OpenAI API allowed during HackNation dev) | **~4.5 – 6.5 GB VRAM** | Polish administrative/legal specialization; paired with our lightweight `knowledge_graph.json` (~200 tokens/node), it runs with minimal context and sub-second latency. |
+| **JSON Summaries & Drafts** | Local **`PLLuM-4B-instruct-2512` (Q4_K_M GGUF)** | **2.49 GB weights** | Summarizes redacted requests and drafts letters from selected anonymized context. TypeScript performs the matching. |
+
+If a local model is unavailable, keep manual transcription, structured summaries, template drafting and manual redaction available. Final supervisor approval continues to apply.
 
 ---
 
@@ -78,10 +78,9 @@ This project runs inside the `modulon-poc` monorepo:
 ```text
 hacknation_2026/
 ├── apps/
-│   ├── web/                  # ⚛️ Next.js 16 + React 19 + Tailwind CSS v4 (Port 3000)
-│   │                         #    OWNER: Frontend & Split-Screen OCR Dev
+│   ├── web/                  # Next.js and TypeScript API, permissions, workflow, matching and documents
 │   └── pyworker/             # 🐍 FastAPI + Uvicorn Python Worker (Port 8010)
-│                             #    OWNER: Backend, AI Models (PII-Tracer / OCR / LLM) & JSON Graph Dev
+│                             # Local OCR and PII-Tracer detection
 ├── packages/
 │   ├── database/             # 🗄️ Prisma 7.10.1 + PostgreSQL schema & migrations
 │   ├── queue/                # 🔄 pg-boss durable background job queue
@@ -118,7 +117,7 @@ Agents working in this repository have access to **Skillpack** skills. Always lo
 | **Architecture & Contracts** | `architect` | Service boundaries between `apps/web` and `apps/pyworker`, JSON Graph schema, API contracts. |
 | **UI / UX & Split-Screen Views** | `ui-ux-designer` | Designing the Clerk Calendar Table, Expandable Dept Rows, Split-Screen OCR Verifier, Grey-to-Black Anonymizer, and Admin Graph Visualizer. |
 | **Next.js App Router & Components** | `frameworker` | Implementing routes, layouts, server actions, and API endpoints in `apps/web`. |
-| **Python Worker, OCR & AI Logic** | `code-engineer` | Implementing `PII-Tracer`, OpenCV/OCR word bounding boxes, `.docx` generation, and `knowledge_graph.json` matching in `apps/pyworker`. |
+| **Python Worker, OCR & AI Logic** | `code-engineer` | Implementing PII-Tracer and OCR in `apps/pyworker`, and integrating local PLLuM from the TypeScript backend. |
 | **Web ↔ Pyworker Integration** | `service-integrator` | HTTP contracts, timeouts, streaming, and payload validation between Next.js and FastAPI. |
 | **Prisma & PostgreSQL** | `databaser` | Schema changes, migrations, and seed data in `packages/database`. |
 | **Security, PII & Role Guards** | `authkeeper` | Enforcing Clerk vs Admin access (`Panel Admina` guard), irreversible PII redaction, and secret protection. |

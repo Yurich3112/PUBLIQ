@@ -2,7 +2,7 @@ import "server-only";
 import { createDatabaseClient, type PrismaClient } from "@modulon-poc/database";
 
 // Bump with generated schema changes that invalidate the DEV HMR singleton.
-const schemaVersion = "chat-generation-v8";
+const schemaVersion = "udip-transcriptions-v13";
 const databaseGlobal = globalThis as typeof globalThis & { modulonDatabase?: PrismaClient; modulonDatabaseSchema?: string };
 let database: PrismaClient | undefined;
 
