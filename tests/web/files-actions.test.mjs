@@ -52,7 +52,7 @@ const actor = '019a75c0-0000-7000-8000-000000000002';
 const keys = ['019a75c0-0000-7000-8000-000000000003', '019a75c0-0000-7000-8000-000000000004'];
 const input = { uuid, expectedStatus: 'active' };
 
-function fixture({ conflict = false, failKey, inUse = false } = {}) {
+function fixture({ conflict = false, failKey, inUse = false, udipInUse = false, knowledgeInUse = false } = {}) {
   const events = [];
   let deleting_at = null;
   const transaction = {
@@ -66,6 +66,14 @@ function fixture({ conflict = false, failKey, inUse = false } = {}) {
     product: { findFirst: async args => {
       assert.deepEqual(args, { where: { imageFileUuid: uuid }, select: { uuid: true } });
       return inUse ? { uuid: actor } : null;
+    } },
+    udipDocument: { findFirst: async args => {
+      assert.deepEqual(args, { where: { fileVersion: { fileUuid: uuid } }, select: { uuid: true } });
+      return udipInUse ? { uuid: actor } : null;
+    } },
+    udipKnowledgeRecord: { findFirst: async args => {
+      assert.deepEqual(args, { where: { fileVersion: { fileUuid: uuid } }, select: { uuid: true } });
+      return knowledgeInUse ? { uuid: actor } : null;
     } },
     file: {
       update: async ({ data }) => { deleting_at = data.deletingAt; events.push('intent'); },
@@ -112,6 +120,18 @@ test('a stale or missing file prevents permanent deletion of any revision', asyn
 
 test('a product image cannot be removed from storage or the catalog while referenced', async () => {
   const events = fixture({ inUse: true });
+  assert.deepEqual(await permanentlyDeleteFile(input), { status: 'inUse' });
+  assert.deepEqual(events, ['lock', 'commit']);
+});
+
+test('the file catalog cannot delete an original attached to a UDIP case', async () => {
+  const events = fixture({ udipInUse: true });
+  assert.deepEqual(await permanentlyDeleteFile(input), { status: 'inUse' });
+  assert.deepEqual(events, ['lock', 'commit']);
+});
+
+test('the file catalog cannot delete a knowledge-base original', async () => {
+  const events = fixture({ knowledgeInUse: true });
   assert.deepEqual(await permanentlyDeleteFile(input), { status: 'inUse' });
   assert.deepEqual(events, ['lock', 'commit']);
 });

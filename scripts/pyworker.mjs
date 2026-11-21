@@ -160,6 +160,7 @@ export async function pyworkerEnvironment(root = ROOT, inherited = process.env) 
     'PYWORKER_OLLAMA_URL', 'PYWORKER_OCR_VLM_MODEL', 'PYWORKER_OCR_TIMEOUT_SECONDS',
     'PYWORKER_OCR_MAX_BYTES', 'PYWORKER_OCR_MAX_PAGES',
     'PYWORKER_OCR_LOW_CONFIDENCE_THRESHOLD', 'PYWORKER_OCR_LEGIBILITY_MIN_AVG',
+    'UDIP_PII_MODEL_DIR', 'UDIP_OCR_DET_MODEL_DIR', 'UDIP_OCR_REC_MODEL_DIR',
   ]);
   const runtime = Object.fromEntries(Object.entries(inherited).filter(([key]) => runtimeKeys.has(key.toUpperCase()) || workerKeys.has(key)));
   return { ...runtime, ...Object.fromEntries(Object.entries(local).filter(([key]) => workerKeys.has(key) && !(key in inherited))),

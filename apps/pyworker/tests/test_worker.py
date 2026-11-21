@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -29,6 +30,52 @@ class WorkerTests(unittest.TestCase):
                 self.assertEqual(response.headers["cache-control"], "no-store")
                 self.assertNotIn(TOKEN, response.text)
         self.assertFalse(self.app.state.ready)
+
+    def test_udip_pii_requires_auth_and_returns_utf16_offsets(self):
+        text = "😀 Anna Nowak"
+        span = SimpleNamespace(start=2, end=len(text), label="private_person")
+        model = SimpleNamespace(predict=lambda _text: ([span], 1.0))
+        with (
+            TestClient(self.app) as client,
+            patch("pyworker.tasks.udip._pii_model", return_value=model),
+        ):
+            url = "/v1/tasks/udip/pii"
+            self.assertEqual(client.post(url, json={"text": text}).status_code, 401)
+            response = client.post(url, json={"text": text}, headers=HEADERS)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.json(),
+                {
+                    "suggestions": [{"range": [3, 13], "kind": "private_person"}],
+                },
+            )
+
+    def test_udip_ocr_uses_private_transport_and_handles_unavailable_engine(self):
+        from pyworker.tasks.udip import ModelUnavailable
+
+        with (
+            TestClient(self.app) as client,
+            patch("pyworker.main.read_pdf_scan", side_effect=ModelUnavailable),
+        ):
+            url = "/v1/tasks/udip/ocr"
+            self.assertEqual(client.post(url, json={"content_base64": "AA=="}).status_code, 401)
+            response = client.post(url, json={"content_base64": "AA=="}, headers=HEADERS)
+            self.assertEqual(response.status_code, 503)
+
+    def test_ocr_omits_whitespace_boxes_emitted_by_engine(self):
+        from pyworker.tasks.udip import _page_words
+
+        result = {
+            "text_word": [["Kwota", " ", "12340"]],
+            "text_word_boxes": [[[1, 1, 10, 5], [10, 1, 12, 5], [12, 1, 22, 5]]],
+        }
+        self.assertEqual(
+            _page_words(result, 40, 10),
+            [
+                {"text": "Kwota", "box": [1, 1, 9, 4]},
+                {"text": "12340", "box": [12, 1, 10, 4]},
+            ],
+        )
 
     def test_authenticated_idempotent_diagnostic(self):
         with TestClient(self.app) as client:

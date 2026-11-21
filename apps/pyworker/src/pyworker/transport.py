@@ -10,6 +10,7 @@ from pyworker.config import Settings
 
 MAX_BODY_BYTES = 8192
 OCR_TASK_PATH = "/v1/tasks/ocr"
+UDIP_LIMITS = {"/v1/tasks/udip/pii": 1_560_032, "/v1/tasks/udip/ocr": 14 * 1024 * 1024}
 
 
 class TaskBoundary:
@@ -24,7 +25,7 @@ class TaskBoundary:
                 self.settings.ocr_max_bytes,
                 self.settings.ocr_timeout,
             )
-        return (b"application/json", MAX_BODY_BYTES, self.settings.task_timeout)
+        return (b"application/json", UDIP_LIMITS.get(path, MAX_BODY_BYTES), self.settings.task_timeout)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope["method"] != "POST":
