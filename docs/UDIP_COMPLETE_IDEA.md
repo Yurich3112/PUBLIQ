@@ -135,6 +135,17 @@ Mirrors `WNIOSKI O UDOSTĘPNIANIE INFORMACJI PUBLICZNEJ.xlsx` while adding the m
   - Clerk clicks to confirm (**Black**) or highlights any custom span.
   - Exporting to `.docx` or `.txt` permanently strips/redacts the confirmed spans so sensitive text cannot be recovered by `Ctrl+Z` or copy-paste.
 
+#### Download PII-Tracer for local development
+
+Download [PII-Tracer from Hugging Face](https://huggingface.co/perplexity-ai/PII-Tracer/tree/d25c16f2e57e321f6d2527715c01df9112f956f5) before working offline. With Git and Git LFS installed, run these commands from the project root to place the model next to the project:
+
+```powershell
+git clone --no-checkout https://huggingface.co/perplexity-ai/PII-Tracer ../PII-Tracer
+git -C ../PII-Tracer checkout --detach d25c16f2e57e321f6d2527715c01df9112f956f5
+```
+
+Allow about 1.2 GB for the model files, plus space for Git's local cache.
+
 ### Module 6: Admin-Only Knowledge Base & Document Placement Visualizer (`Panel Admina`)
 - Accessible only to users with the **Administrator** role.
 - **Live Knowledge Base Uploader (Jury Test #6):** Drag-and-drop new laws (*Ustawy*), Mayor's regulations (*Zarządzenia*), or archival responses.

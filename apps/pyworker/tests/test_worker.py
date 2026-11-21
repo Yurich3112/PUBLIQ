@@ -173,6 +173,114 @@ class WorkerTests(unittest.TestCase):
             self.assertNotIn(TOKEN, output)
             self.assertEqual(response.json()["request_id"], response.headers["x-request-id"])
 
+    def test_ocr_configuration_validation_and_loopback_guard(self):
+        settings = Settings.from_environment(
+            {
+                "PYWORKER_API_TOKEN": TOKEN,
+                "PYWORKER_OLLAMA_URL": "http://127.0.0.1:11434",
+                "PYWORKER_OCR_VLM_MODEL": "qwen2.5vl:3b",
+                "PYWORKER_OCR_TIMEOUT_SECONDS": "90",
+                "PYWORKER_OCR_MAX_BYTES": "5242880",
+                "PYWORKER_OCR_MAX_PAGES": "5",
+                "PYWORKER_OCR_LOW_CONFIDENCE_THRESHOLD": "0.75",
+                "PYWORKER_OCR_LEGIBILITY_MIN_AVG": "0.55",
+            }
+        )
+        self.assertEqual(settings.ollama_url, "http://127.0.0.1:11434")
+        self.assertEqual(settings.ocr_vlm_model, "qwen2.5vl:3b")
+        self.assertEqual(settings.ocr_timeout, 90)
+        self.assertEqual(settings.ocr_max_bytes, 5_242_880)
+        self.assertEqual(settings.ocr_max_pages, 5)
+        self.assertAlmostEqual(settings.ocr_low_confidence_threshold, 0.75)
+        self.assertAlmostEqual(settings.ocr_legibility_min_avg, 0.55)
+
+        private = Settings.from_environment(
+            {
+                "PYWORKER_API_TOKEN": TOKEN,
+                "PYWORKER_OLLAMA_URL": "http://ollama:11434",
+                "PYWORKER_ALLOW_PRIVATE_NETWORK": "true",
+            }
+        )
+        self.assertEqual(private.ollama_url, "http://ollama:11434")
+
+        for field, value in [
+            ("PYWORKER_OLLAMA_URL", "http://ollama:11434"),
+            ("PYWORKER_OLLAMA_URL", "http://user:pass@127.0.0.1:11434"),
+            ("PYWORKER_OLLAMA_URL", "ftp://127.0.0.1:11434"),
+            ("PYWORKER_OCR_VLM_MODEL", "bad model!"),
+            ("PYWORKER_OCR_TIMEOUT_SECONDS", "2"),
+            ("PYWORKER_OCR_MAX_BYTES", "1024"),
+            ("PYWORKER_OCR_MAX_PAGES", "0"),
+            ("PYWORKER_OCR_LOW_CONFIDENCE_THRESHOLD", "1.5"),
+            ("PYWORKER_OCR_LEGIBILITY_MIN_AVG", "nan"),
+        ]:
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError) as error:
+                Settings.from_environment({"PYWORKER_API_TOKEN": TOKEN, field: value})
+            self.assertIn(field, str(error.exception))
+
+    def test_ocr_response_contract_validation(self):
+        from pydantic import ValidationError
+
+        from pyworker.contracts import OcrResponse
+
+        valid = {
+            "engine": {"detector": "rapidocr-dbnet-onnx", "recognizer": "ollama:qwen2.5vl:3b"},
+            "duration_ms": 1200,
+            "page_count": 1,
+            "assembled_text": "ILE PUNKTÓW",
+            "stamp_metadata": {
+                "received_date": "2026-01-09",
+                "registry_number": "3468/2026",
+                "raw_stamp_lines": ["Data wpływu: 09.01.2026"],
+            },
+            "legibility": {
+                "status": "legible",
+                "average_confidence": 0.9,
+                "low_confidence_ratio": 0.0,
+                "recommend_clarification": False,
+                "reason": None,
+            },
+            "pages": [
+                {
+                    "page_index": 0,
+                    "width": 1000,
+                    "height": 1400,
+                    "source_mode": "handwritten_ocr",
+                    "grid_removed": True,
+                    "preview_image_data_url": None,
+                    "lines": [
+                        {
+                            "line_id": "p0_l0",
+                            "zone": "handwriting",
+                            "bbox": [10, 20, 200, 40],
+                            "text": "ILE",
+                            "word_ids": ["p0_w0"],
+                        }
+                    ],
+                    "words": [
+                        {
+                            "id": "p0_w0",
+                            "line_id": "p0_l0",
+                            "text": "ILE",
+                            "bbox": [10, 20, 80, 40],
+                            "confidence": 0.92,
+                            "zone": "handwriting",
+                            "aligned_by": "exact",
+                        }
+                    ],
+                }
+            ],
+        }
+        parsed = OcrResponse.model_validate(valid)
+        self.assertEqual(parsed.stamp_metadata.registry_number, "3468/2026")
+        with self.assertRaises(ValidationError):
+            OcrResponse.model_validate({**valid, "unknown": True})
+        bad_word = {**valid["pages"][0]["words"][0], "bbox": [10, 20, 0, 40]}
+        with self.assertRaises(ValidationError):
+            OcrResponse.model_validate(
+                {**valid, "pages": [{**valid["pages"][0], "words": [bad_word]}]}
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

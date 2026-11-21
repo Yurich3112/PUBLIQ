@@ -22,6 +22,7 @@ Documentation follows the repository's English convention.
 | [Service monitoring](0312-service-monitoring.md) | Seven-day status ticks, hover details, minute scheduling and cleanup |
 | [System configuration](0313-system-configuration.md) | Audited revisions, one active version, scheduler settings and worker synchronization |
 | [Python worker](0314-python-worker.md) | Isolated runtime, defensive boundaries, queue bridge/PostgreSQL helpers, health and verification limits |
+| [Local OCR Verifier Setup](0319-ocr-local-setup.md) | Step-by-step air-gapped Ollama (`gemma3:12b` GPU / `gemma3:4b` CPU), TLS, Keycloak login, and benchmark notes |
 | [QA containers](0316-qa-containers.md) | Separate image builds, migration/seed deployment, guarded startup and disposable acceptance |
 | [DEV startup](0315-dev-startup.md) | Ordered checks/build/migrations, terminal clearing, Docker readiness and parallel Web/workers |
 | [Coding conventions](0308-code-conventions.md) | Readability, validation, server/client boundaries, cookies, consistency, UI and focused checks |

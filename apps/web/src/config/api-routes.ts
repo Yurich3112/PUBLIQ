@@ -16,6 +16,7 @@ export const API_ROUTES = {
   fileUpload: `${API_BASE_PATH}/admin/files/upload`,
   chat: `${API_BASE_PATH}/chat`,
   chatAttachment: `${API_BASE_PATH}/chat/attachments/{uuid}`,
+  ocrAnalyze: `${API_BASE_PATH}/ocr/analyze`,
   cases: `${API_BASE_PATH}/cases`,
   caseById: `${API_BASE_PATH}/cases/{uuid}`,
   caseDepartments: `${API_BASE_PATH}/cases/{uuid}/departments`,

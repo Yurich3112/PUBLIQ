@@ -1,0 +1,86 @@
+{
+  "ocr": {
+    "title": "Weryfikator OCR pisma ręcznego i skanów",
+    "subtitle": "Porównanie 1:1 skanu wniosku UDIP z transkrypcją lokalnego modelu Ollama VLM (bez wysyłki do chmury).",
+    "uploadButton": "Wgraj skan wniosku (PDF/PNG/JPG)",
+    "uploadAnother": "Wgraj inny dokument",
+    "confirmButton": "Zatwierdź tekst wniosku",
+    "illegibleButton": "Skan nieczytelny — Wygeneruj wezwanie do uzupełnienia",
+    "dropTitle": "Upuść skan wniosku UDIP tutaj",
+    "dropHint": "Obsługiwane formaty: PDF, PNG, JPEG (do 20 MiB). Kratka z papieru usuwana jest automatycznie.",
+    "processing": "Przetwarzanie OCR…",
+    "processingFile": "Analiza dokumentu: {name}",
+    "processingStages": "Etap 1: usuwanie kratki OpenCV → Etap 2: detekcja bloków słów → Etap 3: rozpoznawanie całych wierszy (Ollama VLM) → Etap 4: scalanie ramek 1:1",
+    "scanPaneLabel": "Podgląd skanu z ramkami słów",
+    "transcriptionPaneLabel": "Panel transkrypcji i edycji",
+    "transcriptionTitle": "Odwzorowanie 1:1 dokumentu (kliknij słowo, aby poprawić)",
+    "transcriptionHint": "Kliknięcie słowa podświetla je 1:1 (strzałki ←/→ przechodzą między słowami, Enter lub drugie kliknięcie edytuje). Czerwone słowa znikają po ręcznej korekcie (Alt+N — następne niepewne).",
+    "nextUncertain": "Następne niepewne (Alt+N)",
+    "pageIndicator": "Strona {current} z {total}",
+    "gridErasedBadge": "Usunięto kratkę",
+    "prevPage": "Poprzednia strona",
+    "nextPage": "Następna strona",
+    "zoomOut": "Pomniejsz skan",
+    "zoomIn": "Powiększ skan",
+    "resetZoom": "Przywróć powiększenie 100%",
+    "scanAlt": "Skan dokumentu — strona {page}",
+    "noPreviewImage": "Brak obrazu podglądu dla tej strony.",
+    "overlayAriaLabel": "Interaktywna warstwa ramek słów OCR",
+    "editWord": "Edytuj słowo",
+    "editWordInput": "Edytuj odczytane słowo: {word}",
+    "noBodyWords": "Nie wykryto słów w treści wniosku na tej stronie.",
+    "illegibleBannerTitle": "Niska czytelność pisma ręcznego — zalecane wezwanie do doprecyzowania",
+    "illegibleBannerHint": "Średnia pewność odczytu jest poniżej progu. Możesz wygenerować gotowe wezwanie z 7-dniowym terminem.",
+    "sourceMode": {
+      "digital_text": "PDF cyfrowy",
+      "handwritten_ocr": "OCR pisma ręcznego",
+      "printed_ocr": "OCR skanu drukowanego"
+    },
+    "legend": {
+      "high": "Wysoka pewność (≥80%)",
+      "uncertain": "Niepewne (50–79%)",
+      "low": "Niska pewność — do weryfikacji (<80%)",
+      "stamp": "Pieczątka kancelarii"
+    },
+    "stamp": {
+      "receivedDate": "Data wpływu (z pieczątki)",
+      "registryNumber": "Nr wpływu (Kancelaria)",
+      "showRaw": "Pokaż odczyt pieczątki ({count})",
+      "hideRaw": "Ukryj odczyt pieczątki"
+    },
+    "inspector": {
+      "selected": "Wybrane słowo",
+      "original": "OCR"
+    },
+    "stats": {
+      "confidence": "Średnia pewność: {percent}%",
+      "edited": "Poprawione słowa: {count}",
+      "duration": "Czas lokalny: {ms} ms"
+    },
+    "verified": {
+      "title": "Tekst wniosku zatwierdzony przez urzędnika",
+      "copyText": "Kopiuj zatwierdzony tekst",
+      "copied": "Skopiowano"
+    },
+    "clarification": {
+      "title": "Wezwanie do uzupełnienia / doprecyzowania wniosku (7 dni)",
+      "subtitle": "Gotowy projekt pisma BKS UM Bydgoszczy dla nieczytelnego skanu.",
+      "editorLabel": "Treść wezwania do uzupełnienia",
+      "copy": "Kopiuj treść",
+      "copied": "Skopiowano",
+      "downloadTxt": "Pobierz .txt",
+      "close": "Zamknij"
+    },
+    "errors": {
+      "denied": "Brak uprawnień — zaloguj się ponownie.",
+      "invalid": "Nieprawidłowy plik lub żądanie.",
+      "tooLarge": "Plik przekracza limit 20 MiB.",
+      "unsupportedMediaType": "Obsługiwane są wyłącznie pliki PDF, PNG i JPEG.",
+      "invalidDocument": "Dokument jest uszkodzony lub przekracza limit stron.",
+      "busy": "Dla tego konta trwa już analiza OCR. Poczekaj chwilę.",
+      "unavailable": "Lokalny silnik OCR lub Ollama jest niedostępny.",
+      "timeout": "Przekroczono limit czasu analizy OCR. Spróbuj ponownie.",
+      "failed": "Nie udało się przeanalizować dokumentu. Spróbuj ponownie."
+    }
+  }
+}

@@ -5,10 +5,47 @@ import logging
 import os
 import sys
 import threading
+import time
 
 import uvicorn
 
 from pyworker.config import Settings
+
+
+def _wait_for_parent_shutdown() -> None:
+    """Wait for a 'shutdown' line or EOF on stdin without deadlocking Windows DLL loads."""
+    if sys.platform == "win32":
+        import ctypes
+        import msvcrt
+
+        try:
+            handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+            kernel32 = ctypes.windll.kernel32
+            avail = ctypes.c_ulong(0)
+            buf = b""
+            while True:
+                ok = kernel32.PeekNamedPipe(
+                    ctypes.c_void_p(handle), None, 0, None, ctypes.byref(avail), None
+                )
+                if not ok:
+                    return
+                if avail.value > 0:
+                    chunk = sys.stdin.buffer.read(min(avail.value, 4096))
+                    if not chunk:
+                        return
+                    buf += chunk
+                    while b"\n" in buf:
+                        line, buf = buf.split(b"\n", 1)
+                        if line.strip() == b"shutdown":
+                            return
+                else:
+                    time.sleep(0.05)
+        except OSError:
+            pass
+
+    for line in sys.stdin:
+        if line.strip() == "shutdown":
+            return
 
 
 def main() -> None:
@@ -45,9 +82,7 @@ def main() -> None:
         # Windows TerminateProcess cannot drain ASGI work. The owning launcher
         # requests normal Uvicorn shutdown over its private stdin pipe instead.
         def parent_control() -> None:
-            for line in sys.stdin:
-                if line.strip() == "shutdown":
-                    break
+            _wait_for_parent_shutdown()
             server.should_exit = True
 
         threading.Thread(target=parent_control, daemon=True).start()
