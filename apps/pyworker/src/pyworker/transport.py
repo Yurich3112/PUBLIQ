@@ -1,4 +1,4 @@
-"""Authenticate internal writes and bound request bodies before JSON parsing."""
+"""Authenticate internal writes and enforce path-scoped body and media-type limits."""
 
 import asyncio
 import hmac
@@ -9,12 +9,22 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from pyworker.config import Settings
 
 MAX_BODY_BYTES = 8192
+OCR_TASK_PATH = "/v1/tasks/ocr"
 
 
 class TaskBoundary:
     def __init__(self, app: ASGIApp, settings: Settings) -> None:
         self.app = app
         self.settings = settings
+
+    def _route_policy(self, path: str) -> tuple[bytes, int, int]:
+        if path == OCR_TASK_PATH:
+            return (
+                b"application/octet-stream",
+                self.settings.ocr_max_bytes,
+                self.settings.ocr_timeout,
+            )
+        return (b"application/json", MAX_BODY_BYTES, self.settings.task_timeout)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope["method"] != "POST":
@@ -25,20 +35,35 @@ class TaskBoundary:
         if not hmac.compare_digest(headers.get(b"authorization", b""), expected):
             await JSONResponse({"error": "unauthorized"}, status_code=401)(scope, receive, send)
             return
-        if headers.get(b"content-type", b"").split(b";")[0].strip() != b"application/json":
+        expected_content_type, max_bytes, body_timeout = self._route_policy(scope.get("path", ""))
+        content_type = headers.get(b"content-type", b"").split(b";")[0].strip().lower()
+        if content_type != expected_content_type:
             await JSONResponse({"error": "unsupported_content_type"}, status_code=415)(
                 scope, receive, send
             )
             return
+        declared_length = headers.get(b"content-length")
+        if declared_length is not None:
+            try:
+                if int(declared_length) > max_bytes:
+                    await JSONResponse({"error": "body_too_large"}, status_code=413)(
+                        scope, receive, send
+                    )
+                    return
+            except ValueError:
+                await JSONResponse({"error": "invalid_request"}, status_code=400)(
+                    scope, receive, send
+                )
+                return
         body = bytearray()
         try:
-            async with asyncio.timeout(self.settings.task_timeout):
+            async with asyncio.timeout(body_timeout):
                 while True:
                     message = await receive()
                     if message["type"] == "http.disconnect":
                         return
                     chunk = message.get("body", b"")
-                    if len(body) + len(chunk) > MAX_BODY_BYTES:
+                    if len(body) + len(chunk) > max_bytes:
                         await JSONResponse({"error": "body_too_large"}, status_code=413)(
                             scope, receive, send
                         )
