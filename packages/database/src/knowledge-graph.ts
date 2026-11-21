@@ -173,6 +173,12 @@ const POLISH_STOPWORDS = new Set([
   'prezydenta', 'prezydent', 'dnia', 'stan', 'koniec', 'roku', 'rok', 'nr', 'dot',
   'wskazanych', 'poszczególnych', 'poszczegolnych', 'zgodnie', 'załączonymi',
   'zalaczonymi', 'pani', 'pan', 'pana', 'prosimy', 'wnoszę', 'wnosze', 'podanie',
+  'podstawie', 'ustawy', 'ustawa', 'dostępie', 'dostepie', 'art', 'ust', 'poz',
+  'dzien', 'miesiac', 'wnioskodawca', 'adres', 'email', 'telefon', 'podpis',
+  'forma', 'sposob', 'przekazania', 'zakres', 'przedmiot', 'zwracam', 'uprzejmie',
+  'szanowny', 'szanowna', 'pismo', 'odpowiedz', 'odpowiedzi', 'dokument', 'plik',
+  'wrzesnia', 'wrzesien', 'stycznia', 'lutego', 'marca', 'kwietnia', 'maja',
+  'czerwca', 'lipca', 'sierpnia', 'pazdziernika', 'listopada', 'grudnia',
 ]);
 
 const POLISH_SUFFIXES = [
@@ -270,24 +276,53 @@ export function detectBydgoszczEntities(input: string): string[] {
   return found;
 }
 
-/** Auto-extract normalized tags from a text/summary when caller didn't supply explicit tags. */
+function isValidKnowledgeTag(raw: string): boolean {
+  const clean = normalizePolishText(raw).replace(/^[./-]+|[./-]+$/g, '');
+  if (clean.length < 4 || clean.length > 36) return false;
+  if (POLISH_STOPWORDS.has(clean)) return false;
+  if (/[/.]/.test(clean)) return false;
+  if (/^\d+$/.test(clean)) return false;
+  if (clean.startsWith('bks') || clean.endsWith('pdf') || clean.endsWith('docx')) return false;
+  return true;
+}
+
+/** Auto-extract clean Polish domain tags (filtering filenames, slashes, legal boilerplate, and numbers). */
 export function extractAutoTags(text: string, explicitTags: readonly string[] = []): string[] {
   const set = new Set<string>();
   for (const tag of explicitTags) {
-    const clean = tag.trim().toLowerCase();
-    if (clean) set.add(clean);
+    const clean = tag.trim().toLowerCase().replace(/^[./-]+|[./-]+$/g, '');
+    if (clean.length >= 3 && !clean.includes('/') && !clean.includes('.pdf') && !POLISH_STOPWORDS.has(normalizePolishText(clean))) {
+      set.add(clean);
+    }
   }
+
+  // First include any matched canonical Bydgoszcz domain keywords
+  const entityLabels: Record<string, string> = {
+    szkoly_podstawowe: 'szkoły podstawowe',
+    bezdomne_zwierzeta: 'bezdomne zwierzęta',
+    basen_astoria: 'kompleks astoria',
+    sprzedaz_alkoholu: 'punkty sprzedaży alkoholu',
+    odpady_komunalne: 'odpady komunalne',
+    rondo_grunwaldzkie_rzezba: 'rzeźba miejska',
+    zdmikp_drogi: 'drogi i transport',
+    zus_emerytury: 'ubezpieczenia społeczne',
+  };
+  for (const entity of detectBydgoszczEntities(text)) {
+    if (entityLabels[entity]) set.add(entityLabels[entity]);
+  }
+
   const freq = new Map<string, number>();
-  for (const raw of normalizePolishText(text).split(/\s+/)) {
-    if (raw.length < 4 || POLISH_STOPWORDS.has(raw)) continue;
-    freq.set(raw, (freq.get(raw) ?? 0) + 1);
+  for (const raw of normalizePolishText(text).split(/[\s,;:()]+/)) {
+    const token = raw.replace(/^[./-]+|[./-]+$/g, '');
+    if (!isValidKnowledgeTag(token)) continue;
+    freq.set(token, (freq.get(token) ?? 0) + 1);
   }
   const ranked = [...freq.entries()]
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
-    .slice(0, 8)
+    .slice(0, 6)
     .map(([word]) => word);
   for (const word of ranked) set.add(word);
-  return [...set].slice(0, 12);
+  return [...set].slice(0, 8);
 }
 
 export interface SimilarityScoreDetail {
@@ -664,15 +699,62 @@ export async function ingestKnowledgeNode(
         existingClusters.find(c => c.slug === matchResult.topMatch?.clusterSlug) ?? null;
     }
 
+    // If no twin CASE scored >= 0.45, check if the routed department / external authority already belongs to a cluster
+    if (!targetCluster && input.isExternalAuthority) {
+      targetCluster =
+        existingClusters.find(c => c.slug === 'zewnetrzne_brak_dysponenta') ?? null;
+    }
+    if (!targetCluster && (input.routedTo?.length ?? 0) > 0) {
+      for (const deptName of input.routedTo ?? []) {
+        const normDept = normalizePolishText(deptName);
+        const deptNode = existingNodes.find(
+          n =>
+            n.nodeType === KbNodeType.DEPARTMENT
+            && (normalizePolishText(n.title).includes(normDept)
+              || normDept.includes(normalizePolishText(n.title))),
+        );
+        if (deptNode) {
+          targetCluster = existingClusters.find(c => c.uuid === deptNode.clusterUuid) ?? null;
+          if (targetCluster) break;
+        }
+      }
+    }
+
+    // Also match directly against existing cluster descriptions & canonical entities (e.g. Astoria -> inwestycje_i_astoria)
+    if (!targetCluster) {
+      const detectedEntities = detectBydgoszczEntities(`${input.title} ${input.summary} ${tags.join(' ')}`);
+      const entityToCluster: Record<string, string> = {
+        szkoly_podstawowe: 'edukacja_i_szkolnictwo',
+        bezdomne_zwierzeta: 'zwierzeta_i_srodowisko',
+        basen_astoria: 'inwestycje_i_astoria',
+        sprzedaz_alkoholu: 'gospodarka_i_alkohol',
+        odpady_komunalne: 'gospodarka_i_alkohol',
+        rondo_grunwaldzkie_rzezba: 'zewnetrzne_brak_dysponenta',
+        zdmikp_drogi: 'zewnetrzne_brak_dysponenta',
+        zus_emerytury: 'zewnetrzne_brak_dysponenta',
+      };
+      for (const entity of detectedEntities) {
+        const slug = entityToCluster[entity];
+        if (slug) {
+          targetCluster = existingClusters.find(c => c.slug === slug) ?? null;
+          if (targetCluster) break;
+        }
+      }
+    }
+
     if (!targetCluster) {
       const baseSlug = slugifyCluster(tags[0] ?? input.title);
       const uniqueSlug = existingClusters.some(c => c.slug === baseSlug)
         ? `${baseSlug}_${Date.now().toString().slice(-4)}`
         : baseSlug;
+      const cleanClusterTitle =
+        tags.length >= 2
+          ? `${tags[0][0].toUpperCase()}${tags[0].slice(1)} i ${tags[1]}`
+          : input.title.slice(0, 48);
       targetCluster = await tx.kbCluster.create({
         data: {
           slug: uniqueSlug,
-          name: input.title.slice(0, 120),
+          name: cleanClusterTitle.slice(0, 80),
           color: '#7C3AED',
           description: `Automatycznie utworzony klaster tematyczny (${tags.slice(0, 4).join(', ')})`,
         },

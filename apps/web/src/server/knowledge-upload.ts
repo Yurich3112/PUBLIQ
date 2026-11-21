@@ -34,14 +34,23 @@ export interface UploadedKbResult extends KbIngestResult {
 
 const CASE_SIGNATURE_RE = /BKS\.IV\.1431\.\d+\.\d{4}/i;
 
+function stripBoilerplate(text: string): string {
+  return text
+    .replace(/WNIOSEK\s+O\s+UDOSTĘPNIENIE\s+INFORMACJI\s+PUBLICZNEJ/gi, "")
+    .replace(/Na\s+podstawie\s+art\.\s*2\s+ust\.\s*1\s+ustawy[^.]+\./gi, "")
+    .replace(/dzien\/miesiac\/rok|dzień\/miesiąc\/rok/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function heuristicSummaryFromText(
   fileName: string,
   text: string,
   institutions: readonly LlmInstitutionJsonEntry[],
 ) {
-  const clean = text.replace(/\s+/g, " ").trim();
+  const clean = stripBoilerplate(text);
   const sigMatch =
-    fileName.match(CASE_SIGNATURE_RE)?.[0] ?? clean.match(CASE_SIGNATURE_RE)?.[0] ?? null;
+    fileName.match(CASE_SIGNATURE_RE)?.[0] ?? text.match(CASE_SIGNATURE_RE)?.[0] ?? null;
 
   const lower = `${fileName} ${clean}`.toLowerCase();
   const isLegalAct =
@@ -62,12 +71,12 @@ function heuristicSummaryFromText(
       ? `LAW:${stem.toUpperCase()}`
       : `DOC:${stem.toUpperCase()}`;
 
-  const firstSentence = clean.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ").slice(0, 420);
+  const firstSentence = clean.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ").slice(0, 360);
   const title = sigMatch
-    ? `${sigMatch.toUpperCase()} — ${firstSentence.slice(0, 90)}`
-    : fileName.replace(/\.(pdf|docx|txt)$/i, "").slice(0, 120);
+    ? `${sigMatch.toUpperCase()} — ${firstSentence.slice(0, 72)}`
+    : fileName.replace(/\.(pdf|docx|txt)$/i, "").slice(0, 90);
 
-  const tags = extractAutoTags(`${fileName} ${clean}`);
+  const tags = extractAutoTags(clean);
   const externalHint = detectExternalAuthorityHint(`${fileName} ${clean}`);
 
   const matchedDepts = institutions
@@ -75,7 +84,7 @@ function heuristicSummaryFromText(
       inst =>
         inst.kind === "INTERNAL_DEPARTMENT"
         && (lower.includes(inst.name.toLowerCase())
-          || inst.competencies.some(c => c.length >= 4 && lower.includes(c.toLowerCase()))),
+          || inst.competencies.some(c => c.length >= 5 && lower.includes(c.toLowerCase()))),
     )
     .map(inst => inst.name)
     .slice(0, 3);
@@ -90,7 +99,7 @@ function heuristicSummaryFromText(
     nodeType,
     externalKey,
     title,
-    summary: firstSentence || clean.slice(0, 360) || fileName,
+    summary: firstSentence || clean.slice(0, 320) || fileName,
     tags,
     routedTo: externalHint ? [] : matchedDepts,
     isExternalAuthority: Boolean(externalHint),
@@ -129,7 +138,7 @@ async function summarizeWithLocalOllama(
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(60_000),
       body: JSON.stringify({
         model,
         prompt,
@@ -141,7 +150,11 @@ async function summarizeWithLocalOllama(
     if (!response.ok) return null;
     const payload = (await response.json()) as { response?: string };
     if (!payload.response) return null;
-    const rawJson: unknown = JSON.parse(payload.response);
+    const cleanedJson = payload.response
+      .replace(/^```json\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+    const rawJson: unknown = JSON.parse(cleanedJson);
     const parsed = aiSummarySchema.safeParse(rawJson);
     return parsed.success ? parsed.data : null;
   } catch {
@@ -194,12 +207,15 @@ export async function processAdminKnowledgeUpload(params: {
   const heuristic = heuristicSummaryFromText(fileName, extractedText, institutions);
   const ai = await summarizeWithLocalOllama(fileName, extractedText, institutions);
 
+  const rawTags = ai?.tags && ai.tags.length > 0 ? ai.tags : heuristic.tags;
+  const cleanTags = extractAutoTags("", rawTags);
+
   const merged = {
     nodeType: (ai?.nodeType as KbNodeType | undefined) ?? heuristic.nodeType,
     externalKey: ai?.externalKey || heuristic.externalKey,
     title: ai?.title || heuristic.title,
     summary: ai?.summary || heuristic.summary,
-    tags: ai?.tags && ai.tags.length > 0 ? ai.tags : heuristic.tags,
+    tags: cleanTags.length > 0 ? cleanTags : heuristic.tags,
     routedTo: ai?.routedTo && ai.routedTo.length > 0 ? ai.routedTo : heuristic.routedTo,
     isExternalAuthority: ai?.isExternalAuthority ?? heuristic.isExternalAuthority,
     externalAuthority: ai?.externalAuthority ?? heuristic.externalAuthority,
