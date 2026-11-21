@@ -1,0 +1,5 @@
+# DEV applications run on the host. These are the owning application's listener ports.
+services:
+  proxy:
+    environment:
+      MOD_WEB_UPSTREAM: ${WEB_UPSTREAM:-host.docker.internal:3000}

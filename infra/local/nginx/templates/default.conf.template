@@ -1,0 +1,123 @@
+# ===[DNS AND REQUEST LIMITS]========================================================================
+resolver 127.0.0.11 ipv6=off valid=5s;
+error_log /dev/stderr ${MOD_ERROR_LOG_LEVEL};
+map $uri $api_limit_key { default ""; ~^/api(?:/|$) $binary_remote_addr; }
+map $host $auth_limit_key { default ""; ${MOD_AUTH_HOST} $binary_remote_addr; ${MOD_AUTH_ADMIN_HOST} $binary_remote_addr; }
+limit_req_zone $api_limit_key zone=api_limits:10m rate=${MOD_API_RATE};
+limit_req_zone $auth_limit_key zone=auth_limits:10m rate=${MOD_AUTH_RATE};
+limit_req zone=api_limits burst=${MOD_API_BURST} nodelay;
+limit_req zone=auth_limits burst=${MOD_AUTH_BURST} nodelay;
+limit_req_status 429;
+# ===[ROUTING AND WEBSOCKET UPGRADE]=================================================================
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+map "${MOD_HTTPS_PORT}" $https_suffix { default :${MOD_HTTPS_PORT}; 443 ''; }
+map $host $service_upstream {
+  default web_http;
+  ${MOD_AUTH_HOST} auth_http;
+  ${MOD_S3_HOST} s3_http;
+}
+# ===[UPSTREAMS]====================================================================================
+upstream web_http { zone web_http 64k; server ${MOD_WEB_UPSTREAM} resolve; keepalive 16; keepalive_timeout 4s; }
+upstream auth_http { zone auth_http 64k; server auth:8080 resolve; keepalive 8; }
+upstream s3_http { zone s3_http 64k; server s3:8333 resolve; }
+# ===[TLS/SSL]======================================================================================
+ssl_certificate /etc/nginx/tls/localhost.pem;
+ssl_certificate_key /etc/nginx/tls/localhost-key.pem;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_session_cache shared:TLS:10m;
+ssl_session_tickets off;
+# ===[COMMON PROXY DEFAULTS]========================================================================
+proxy_http_version 1.1;
+proxy_set_header Host $http_host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $http_host;
+proxy_set_header X-Forwarded-Port ${MOD_HTTPS_PORT};
+proxy_set_header X-Request-ID $request_id;
+proxy_set_header Forwarded '';
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;
+proxy_connect_timeout ${MOD_CONNECT_TIMEOUT};
+proxy_read_timeout ${MOD_READ_TIMEOUT};
+proxy_send_timeout ${MOD_SEND_TIMEOUT};
+proxy_buffer_size 16k;
+proxy_buffers 8 16k;
+proxy_intercept_errors off;
+client_max_body_size ${MOD_MAX_BODY_SIZE};
+add_header X-Content-Type-Options nosniff always;
+add_header X-Request-ID $request_id always;
+
+# ===[INTERNAL PROXY LIVENESS]=======================================================================
+server {
+  listen 127.0.0.1:8082;
+  location = /health/live { default_type application/json; return 200 '{"status":"ok","service":"proxy"}'; }
+  location / { return 404; }
+}
+# ===[HTTP TO HTTPS]================================================================================
+server { listen 80 default_server; server_name _; return 404; }
+server {
+  listen 80;
+  server_name ${MOD_APP_HOST} ${MOD_WEB_HOST} ${MOD_AUTH_HOST} ${MOD_AUTH_ADMIN_HOST} ${MOD_S3_HOST} ${MOD_S3CONSOLE_HOST};
+  return 308 https://$host$https_suffix$request_uri;
+}
+# ===[HTTPS APPLICATION AND IDENTITY]===============================================================
+server { listen ${MOD_HTTPS_PORT} ssl default_server; server_name _; return 404; }
+server {
+  listen ${MOD_HTTPS_PORT} ssl;
+  http2 on;
+  server_name ${MOD_APP_HOST} ${MOD_WEB_HOST} ${MOD_AUTH_HOST};
+  include /etc/nginx/snippets/errors.conf;
+  location ~ /\.(?!well-known(?:/|$)) { return 404; }
+  location / { proxy_pass http://$service_upstream; proxy_request_buffering off; proxy_buffering off; }
+}
+# ===[LOCAL AUTH ENTRY]=============================================================================
+# Local browser entry, fixed destinations keep the canonical OIDC issuer intact.
+server {
+  listen 8080;
+  server_name localhost 127.0.0.1;
+  location = / { return 302 ${MOD_AUTH_ADMIN_PUBLIC_URL}/admin/; }
+  location = /admin { return 308 ${MOD_AUTH_ADMIN_PUBLIC_URL}/admin/; }
+  location /admin/ { return 308 ${MOD_AUTH_ADMIN_PUBLIC_URL}$request_uri; }
+  location / { return 308 ${MOD_AUTH_PUBLIC_URL}$request_uri; }
+}
+# ===[AUTH CONSOLE]=================================================================================
+# Keycloak owns its iframe/CSP headers, preserve them through the proxy.
+server {
+  listen ${MOD_HTTPS_PORT} ssl;
+  http2 on;
+  server_name ${MOD_AUTH_ADMIN_HOST};
+  include /etc/nginx/snippets/errors.conf;
+  location = / { return 302 /admin/; }
+  location / { proxy_pass http://auth_http; }
+}
+
+# ===[S3 API]=======================================================================================
+server {
+  listen ${MOD_HTTPS_PORT} ssl;
+  http2 on;
+  server_name ${MOD_S3_HOST};
+  client_max_body_size ${MOD_S3_MAX_BODY_SIZE};
+  include /etc/nginx/snippets/errors.conf;
+  location / {
+    proxy_pass http://s3_http;
+    proxy_request_buffering off;
+    proxy_buffering off;
+  }
+}
+
+# ===[SEAWEEDFS ADMIN UI]===========================================================================
+# Resolve the optional tools service at request time; missing console must not block proxy startup.
+server {
+  listen ${MOD_HTTPS_PORT} ssl;
+  http2 on;
+  server_name ${MOD_S3CONSOLE_HOST};
+  include /etc/nginx/snippets/errors.conf;
+  location / {
+    set $s3console_upstream s3console:8080;
+    proxy_pass http://$s3console_upstream;
+    proxy_cookie_flags ~ secure httponly samesite=lax;
+    proxy_request_buffering off;
+    proxy_buffering off;
+  }
+}
