@@ -42,7 +42,7 @@ test('DEV recreates a cached client generated before Product and closes the obso
 test('DEV reuses a compatible client instead of recreating its connection pool', async t => {
   fixture(t);
   globalThis.modulonDatabase = state.client;
-  globalThis.modulonDatabaseSchema = 'udip-redaction-v11';
+  globalThis.modulonDatabaseSchema = 'udip-knowledge-v12';
   const { getDatabase } = await import('../../apps/web/src/server/database.ts?case=current');
   assert.equal(getDatabase(), state.client);
   assert.equal(state.created, 0);

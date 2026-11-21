@@ -7,15 +7,17 @@
 - [x] 1.3 Store originals and extract digital PDF and DOCX text. Verify failed extraction leaves the case accessible and supports manual transcription.
 - [ ] 1.4 Verify case and document workflows with real signed-in sessions and the project clerk, supervisor and administrator grants.
 - [ ] 1.5 Connect the local OCR worker and verify authorized real scans.
+- [x] 1.6 Return the oldest cases first with year filtering, Warsaw deadline urgency and department reply counts. Seed and verify five green and five red cases.
 
 ## 2. Anonymization, summary and routing
 
 - [x] 2.0 Save clerk-selected UTF-16 intake ranges using manual and rule-based suggestions. Verify duplicate occurrences, overlap, emoji and stale transcription revisions.
 - [ ] 2.1 Connect PII-Tracer intake suggestions and clerk editing. Check false positives and missed ranges on permitted project documents and check that only confirmed sanitized text reaches PLLuM.
-- [ ] 2.2 Add local JSON summaries and manual summaries using the same schema. Test malformed model output, multiple questions and periods.
-- [ ] 2.3 Add TypeScript ranking of PostgreSQL knowledge records and clerk confirmation. Test different destinations in the same request and inspect the bounded context sent to PLLuM.
+- [x] 2.2 Save versioned manual JSON summaries with questions, sought data and periods.
+- [x] 2.3 Rank approved knowledge in TypeScript per question, show source and period differences, and allow clerk confirmation or manual routing.
 - [x] 2.4 Track responses per department. Verify independent pending states and file and pasted-text inputs.
-- [ ] 2.5 Generate external message drafts after routing confirmation.
+- [x] 2.5 Generate external message drafts from the current question after recipient confirmation and record external dispatch separately.
+- [ ] 2.6 Connect local PLLuM summaries to the shared JSON schema. Test malformed model output and inspect the bounded context from approved records.
 
 ## 3. Versioned letters and TXT
 
@@ -26,5 +28,5 @@
 
 ## 4. Administrator knowledge base and integration
 
-- [ ] 4.1 Add source versioning, clustering, link visualization and publication. Test that pending versions appear to administrators and are excluded from matches until approval.
+- [x] 4.1 Add administrator-only import, source versioning, clustering, link data for visualization and publication. Verify that matching sees the approved version immediately and that a clerk cannot import knowledge.
 - [ ] 4.2 Verify the complete path with authorized PDFs and Word documents, including a simulated model outage and manual completion.

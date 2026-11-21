@@ -80,6 +80,11 @@ model User {
   createdUdipRedactions UdipRedactionRevision[] @relation("UdipRedactionAuthor")
   approvedUdipRedactions UdipRedactionRevision[] @relation("UdipRedactionApprover")
   sentUdipCases      UdipCase[] @relation("UdipDispatchActor")
+  udipCaseSummaries  UdipCaseManualSummary[]
+  importedUdipKnowledge UdipKnowledgeRecord[] @relation("UdipKnowledgeImporter")
+  approvedUdipKnowledge UdipKnowledgeRecord[] @relation("UdipKnowledgeApprover")
+  confirmedUdipRoutes UdipQuestionRoute[] @relation("UdipRouteActor")
+  sentUdipRoutes     UdipQuestionRoute[] @relation("UdipRouteDispatchActor")
 
   @@map("user")
 }
@@ -133,6 +138,8 @@ model UdipCase {
   sentRedactionUuid String?                  @unique @map("sent_redaction_uuid") @db.Uuid
   sentBy          User?                      @relation("UdipDispatchActor", fields: [sentByUuid], references: [uuid], onDelete: Restrict)
   sentRedaction   UdipRedactionRevision?      @relation(fields: [sentRedactionUuid], references: [uuid], onDelete: Restrict)
+  manualSummary   UdipCaseManualSummary?
+  routes          UdipQuestionRoute[]
 
   @@unique([ownerUuid, clientRequestId])
   @@index([year, receivedDate, uuid])
@@ -225,6 +232,67 @@ model UdipRedactionRevision {
   @@unique([documentUuid, version])
   @@unique([draftUuid, version])
   @@map("udip_redaction_revision")
+}
+
+model UdipCaseManualSummary {
+  caseUuid      String   @id @map("case_uuid") @db.Uuid
+  version       Int      @default(1)
+  data          Json
+  updatedByUuid String   @map("updated_by_uuid") @db.Uuid
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  case          UdipCase @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
+  updatedBy     User     @relation(fields: [updatedByUuid], references: [uuid], onDelete: Restrict)
+
+  @@map("udip_case_manual_summary")
+}
+
+enum UdipKnowledgeKind {
+  legalAct
+  ordinance
+  archivedReply
+}
+
+model UdipKnowledgeRecord {
+  uuid            String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  groupUuid       String            @map("group_uuid") @db.Uuid
+  version         Int
+  kind            UdipKnowledgeKind
+  title           String            @db.VarChar(255)
+  sourceName      String            @map("source_name") @db.VarChar(255)
+  sourceText      String            @map("source_text")
+  data            Json
+  cluster         String            @db.VarChar(120)
+  fileVersionUuid String?           @unique @map("file_version_uuid") @db.Uuid
+  createdByUuid   String            @map("created_by_uuid") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  approvedByUuid  String?           @map("approved_by_uuid") @db.Uuid
+  approvedAt      DateTime?         @map("approved_at") @db.Timestamptz(3)
+  supersededAt    DateTime?         @map("superseded_at") @db.Timestamptz(3)
+  fileVersion     FileVersion?      @relation(fields: [fileVersionUuid], references: [uuid], onDelete: Restrict)
+  createdBy       User              @relation("UdipKnowledgeImporter", fields: [createdByUuid], references: [uuid], onDelete: Restrict)
+  approvedBy      User?             @relation("UdipKnowledgeApprover", fields: [approvedByUuid], references: [uuid], onDelete: Restrict)
+
+  @@unique([groupUuid, version])
+  @@index([approvedAt, supersededAt, uuid])
+  @@map("udip_knowledge_record")
+}
+
+model UdipQuestionRoute {
+  uuid            String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  caseUuid        String    @map("case_uuid") @db.Uuid
+  summaryVersion  Int       @map("summary_version")
+  questionUuid    String    @map("question_uuid") @db.Uuid
+  unit            Json
+  draft           String?
+  confirmedByUuid String    @map("confirmed_by_uuid") @db.Uuid
+  sentDate        DateTime? @map("sent_date") @db.Date
+  sentByUuid      String?   @map("sent_by_uuid") @db.Uuid
+  case            UdipCase  @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
+  confirmedBy     User      @relation("UdipRouteActor", fields: [confirmedByUuid], references: [uuid], onDelete: Restrict)
+  sentBy          User?     @relation("UdipRouteDispatchActor", fields: [sentByUuid], references: [uuid], onDelete: Restrict)
+
+  @@unique([caseUuid, summaryVersion, questionUuid])
+  @@map("udip_question_route")
 }
 
 enum ChatMode {
@@ -473,6 +541,7 @@ model FileVersion {
   file          File     @relation(fields: [fileUuid], references: [uuid], onDelete: Restrict)
   createdBy     User     @relation("FileVersionCreatedBy", fields: [createdByUuid], references: [uuid], onDelete: Restrict)
   udipDocument  UdipDocument?
+  udipKnowledge UdipKnowledgeRecord?
 
   @@unique([fileUuid, version])
   @@index([createdByUuid])

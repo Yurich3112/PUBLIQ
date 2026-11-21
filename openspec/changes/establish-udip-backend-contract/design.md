@@ -82,6 +82,24 @@ Review responses include the exact working text, suggestions, the current revisi
 
 The approval is bound to the latest draft version and selected ranges. A text or range change requires a separate approval. The export removes characters from the underlying text and leaves unrelated occurrences intact. It does not record dispatch. Stage 3 uses local deterministic rules for PESEL-like numbers, email and Polish phone formats. PII-Tracer and PLLuM calls remain separate integrations.
 
+### Stage 4 API for calendar, routing and knowledge
+
+`GET /api/v1/udip/cases?year=2026` returns cases ordered by receipt date and case ID. `daysRemaining` uses the recorded due date and Warsaw's current calendar day. The status remains `A` through `E`. `urgency` is red for unsent cases due today, tomorrow or overdue, and green otherwise. `departmentResponses` includes `total`, `received` and `multiDepartment`. Case details expose `pending` or `received` for each assignment, and the existing reply upload route updates only that assignment.
+
+| Route | Contract |
+| --- | --- |
+| `GET/PATCH /api/v1/udip/cases/{caseId}/summary` | Read or save `{ expectedVersion, summary }`. The JSONB summary contains `topic`, `tags`, `dataSought`, `period` and `questions`. Each question has a UUID, text, optional data sought and an optional period override. Start at version `0`. |
+| `GET /api/v1/udip/cases/{caseId}/recommendations` | Return matches and suggested units per question with the published source, rationale and differing periods. `requiresManualSelection` marks a question without a sufficiently strong unit recommendation. |
+| `GET/POST /api/v1/udip/cases/{caseId}/routing` | Read or confirm `{ summaryVersion, questionId, unit }`. Confirmation creates or reuses an internal assignment or generates an external email draft from the current question. |
+| `POST /api/v1/udip/cases/{caseId}/routing/{routeId}/dispatch` | Record `{ sentDate }` after sending the external message. This is separate from dispatch of the final case letter. |
+| `GET/POST /api/v1/admin/udip/knowledge` | Administrators list or import legal acts, ordinances and archive replies. Send JSON with source text, or PDF/DOCX and a multipart `metadata` JSON field. `data` contains the anonymized summary and associated units. Pass `groupId` to add a version of an existing record. |
+| `GET /api/v1/admin/udip/knowledge/{id}` | Return the source, version, cluster, units and similar published records for visualization. |
+| `POST /api/v1/admin/udip/knowledge/{id}/approval` | Publish the record immediately and supersede any older published version in its group. |
+
+Matching ranks normalized topic and question terms against approved JSONB entries. It returns source references and period differences. External drafts use the confirmed recipient and the current request, while letter drafts still use only the current case's reply documents as evidence.
+
+To create ten synthetic cases for a local demo, migrate the database, run `pnpm build:database`, then run `pnpm --filter @modulon-poc/database db:seed:udip-demo <local-user-uuid>`. The seed uses the database package `.env` or `DATABASE_URL` and preserves existing cases on a repeat run. The first run creates five cases of each urgency relative to the seed date.
+
 ### Knowledge base and manual fallback
 
 - Administrators upload acts and archived replies. Store original source and version metadata, validated anonymized matching content, proposed cluster and similar record links. The admin graph can show pending placement. Matching reads only approved anonymized versions.

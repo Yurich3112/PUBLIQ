@@ -10,7 +10,9 @@ import type { UdipUpload } from "./upload.ts";
 
 const caseFields = {
   uuid: true, signature: true, applicantName: true, subject: true, receivedDate: true, dueDate: true, status: true, sentDate: true,
+  assignments: { select: { respondedAt: true } },
 } as const;
+const assignmentFields = { uuid: true, departmentCode: true, departmentName: true, respondedAt: true } as const;
 const registeredCaseFields = {
   ...caseFields,
   requestHash: true,
@@ -28,12 +30,20 @@ function warsawCalendarDate(now: Date) {
 }
 
 function caseSummary(row: Prisma.UdipCaseGetPayload<{ select: typeof caseFields }>, today: string): UdipCaseSummary {
+  const daysRemaining = (row.dueDate.getTime() - Date.parse(today)) / dayMs;
+  const total = row.assignments.length;
   return {
     id: row.uuid, signature: row.signature, applicantName: row.applicantName, subject: row.subject,
     receivedDate: row.receivedDate.toISOString().slice(0, 10), dueDate: row.dueDate.toISOString().slice(0, 10),
-    daysRemaining: (row.dueDate.getTime() - Date.parse(today)) / dayMs, processStatus: row.status,
+    daysRemaining, processStatus: row.status,
     sentDate: row.sentDate?.toISOString().slice(0, 10) ?? null,
+    urgency: row.status === "E" || daysRemaining > 1 ? "green" : "red",
+    departmentResponses: { total, received: row.assignments.filter(item => item.respondedAt !== null).length, multiDepartment: total > 1 },
   };
+}
+
+function assignmentSummary({ uuid: id, respondedAt, ...assignment }: Prisma.UdipDepartmentAssignmentGetPayload<{ select: typeof assignmentFields }>) {
+  return { ...assignment, id, respondedAt: respondedAt?.toISOString() ?? null, responseStatus: respondedAt ? "received" as const : "pending" as const };
 }
 
 export async function listUdipCases(actor: UdipActor, query: UdipCaseListQuery): Promise<UdipCaseList> {
@@ -54,17 +64,14 @@ export async function readUdipCase(actor: UdipActor, uuid: string): Promise<Udip
     select: {
       ...caseFields,
       documents: { orderBy: [{ createdAt: "asc" }, { uuid: "asc" }], select: documentFields },
-      assignments: { orderBy: { departmentCode: "asc" }, select: {
-        uuid: true, departmentCode: true, departmentName: true, respondedAt: true,
-      } },
+      assignments: { orderBy: { departmentCode: "asc" }, select: assignmentFields },
     },
   });
   if (!row) return null;
   return {
     case: caseSummary(row, warsawCalendarDate(new Date())),
     documents: row.documents.map(documentSummary),
-    assignments: row.assignments.map(({ uuid: id, respondedAt, ...assignment }) =>
-      ({ ...assignment, id, respondedAt: respondedAt?.toISOString() ?? null })),
+    assignments: row.assignments.map(assignmentSummary),
   };
 }
 
@@ -130,17 +137,15 @@ export async function registerUdipAssignment(actor: UdipActor, caseUuid: string,
   if (!await db.udipCase.findFirst({ where: { uuid: caseUuid, ...(actor.isAdmin ? {} : { ownerUuid: actor.id }) },
     select: { uuid: true } })) return { status: "missing" } as const;
   const where = { caseUuid_departmentCode: { caseUuid, departmentCode: input.departmentCode } };
-  const select = { uuid: true, departmentCode: true, departmentName: true, respondedAt: true } as const;
-  const summarize = ({ uuid: id, respondedAt, ...row }: Prisma.UdipDepartmentAssignmentGetPayload<{ select: typeof select }>) =>
-    ({ ...row, id, respondedAt: respondedAt?.toISOString() ?? null });
+  const select = assignmentFields;
   const readExisting = () => db.udipDepartmentAssignment.findUnique({ where, select });
   const reply = (row: NonNullable<Awaited<ReturnType<typeof readExisting>>>) => row.departmentName === input.departmentName
-    ? { status: "replayed" as const, assignment: summarize(row) } : { status: "conflict" as const };
+    ? { status: "replayed" as const, assignment: assignmentSummary(row) } : { status: "conflict" as const };
   const existing = await readExisting();
   if (existing) return reply(existing);
   try {
     const row = await db.udipDepartmentAssignment.create({ data: { ...input, caseUuid }, select });
-    return { status: "created" as const, assignment: summarize(row) };
+    return { status: "created" as const, assignment: assignmentSummary(row) };
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") {
       const replay = await readExisting();

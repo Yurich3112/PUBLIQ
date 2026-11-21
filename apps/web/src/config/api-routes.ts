@@ -29,6 +29,13 @@ export const API_ROUTES = {
     draftApproval: `${API_BASE_PATH}/udip/cases/{caseId}/drafts/approval`,
     draftExport: `${API_BASE_PATH}/udip/cases/{caseId}/drafts/export`,
     dispatch: `${API_BASE_PATH}/udip/cases/{caseId}/dispatch`,
+    summary: `${API_BASE_PATH}/udip/cases/{caseId}/summary`,
+    recommendations: `${API_BASE_PATH}/udip/cases/{caseId}/recommendations`,
+    routing: `${API_BASE_PATH}/udip/cases/{caseId}/routing`,
+    externalDispatch: `${API_BASE_PATH}/udip/cases/{caseId}/routing/{routeId}/dispatch`,
+    adminKnowledge: `${API_BASE_PATH}/admin/udip/knowledge`,
+    adminKnowledgeRecord: `${API_BASE_PATH}/admin/udip/knowledge/{id}`,
+    adminKnowledgeApproval: `${API_BASE_PATH}/admin/udip/knowledge/{id}/approval`,
   },
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,

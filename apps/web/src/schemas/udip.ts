@@ -33,6 +33,8 @@ export const udipCaseSummarySchema = z.object({
   daysRemaining: z.int(),
   processStatus: udipCaseStatusSchema,
   sentDate: calendarDate.nullable(),
+  urgency: z.enum(["green", "red"]),
+  departmentResponses: z.object({ total: z.int().nonnegative(), received: z.int().nonnegative(), multiDepartment: z.boolean() }),
 });
 
 export const udipDocumentSummarySchema = z.object({
@@ -50,6 +52,7 @@ export const udipAssignmentSummarySchema = z.object({
   departmentCode: z.string(),
   departmentName: z.string(),
   respondedAt: z.iso.datetime().nullable(),
+  responseStatus: z.enum(["pending", "received"]),
 });
 
 export const udipCaseCreatedSchema = z.object({
@@ -68,7 +71,7 @@ export const udipCaseDetailSchema = z.object({
   assignments: z.array(udipAssignmentSummarySchema),
 });
 
-const udipText = (max: number) => z.string().trim().min(1).max(max).refine(text => !text.includes("\0"));
+export const udipText = (max: number) => z.string().trim().min(1).max(max).refine(text => !text.includes("\0"));
 export const udipMaxTextChars = 100_000;
 export const udipReplyRequestSchema = z.object({ clientRequestId: z.uuid().transform(id => id.toLowerCase()) }).strict();
 export const udipEmailReplySchema = udipReplyRequestSchema.extend({ text: udipText(udipMaxTextChars) });
@@ -77,6 +80,45 @@ export const udipAssignmentInputSchema = z.object({
   departmentCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9._-]{0,79}$/),
   departmentName: udipText(255),
 }).strict();
+
+const periodSchema = z.object({ from: calendarDate, to: calendarDate }).strict().refine(period => period.from <= period.to);
+const keywordList = z.array(udipText(160)).max(30);
+const questionSchema = z.object({
+  id: z.uuid().transform(id => id.toLowerCase()), text: udipText(1500), dataSought: keywordList.default([]),
+  period: periodSchema.nullable().default(null),
+}).strict();
+export const udipStructuredSummarySchema = z.object({
+  topic: udipText(500), tags: keywordList, dataSought: keywordList, period: periodSchema.nullable(),
+  questions: z.array(questionSchema).min(1).max(25).refine(items => new Set(items.map(item => item.id)).size === items.length),
+}).strict();
+const currentVersion = z.int().min(0).max(2_147_483_646);
+export const udipManualSummaryInputSchema = z.object({ expectedVersion: currentVersion, summary: udipStructuredSummarySchema }).strict();
+
+export const udipUnitSchema = udipAssignmentInputSchema.extend({
+  kind: z.enum(["department", "external"]), email: z.email().max(254).optional(),
+}).strict();
+export const udipKnowledgeDataSchema = z.object({
+  summary: udipStructuredSummarySchema,
+  units: z.array(udipUnitSchema).max(20),
+  questionUnits: z.array(z.object({ questionId: z.uuid().transform(id => id.toLowerCase()), units: z.array(udipUnitSchema).max(20) }).strict()).max(25).default([]),
+  caseSignature: z.string().regex(/^BKS\.IV\.1431\.[1-9]\d*\.[1-9]\d{3}$/).optional(),
+}).strict().refine(data => {
+  const ids = new Set(data.summary.questions.map(question => question.id));
+  return new Set(data.questionUnits.map(item => item.questionId)).size === data.questionUnits.length
+    && data.questionUnits.every(item => ids.has(item.questionId));
+});
+export const udipKnowledgeImportSchema = z.object({
+  groupId: z.uuid().transform(id => id.toLowerCase()).optional(),
+  kind: z.enum(["legalAct", "ordinance", "archivedReply"]), title: udipText(255), sourceName: udipText(255),
+  sourceText: udipText(udipMaxTextChars).optional(), data: udipKnowledgeDataSchema,
+}).strict();
+export const udipKnowledgeQuerySchema = z.object({
+  limit: paginationNumber(1, 100).optional(), offset: paginationNumber(0, 1_000_000).optional(),
+}).strict();
+export const udipConfirmRouteSchema = z.object({
+  summaryVersion: z.int().positive(), questionId: z.uuid().transform(id => id.toLowerCase()), unit: udipUnitSchema,
+}).strict();
+export const udipExternalDispatchSchema = z.object({ sentDate: calendarDate }).strict();
 export const udipDocumentDetailSchema = udipDocumentSummarySchema.extend({ extractedText: z.string().nullable() });
 
 const draftPointInput = z.object({

@@ -22,3 +22,12 @@ export async function withUdipCase(request: Request, caseId: string, action: (ac
   try { return await action(access.actor, parsed.data); }
   catch { return udipProblem("unavailable"); }
 }
+
+export async function withUdipAdmin(request: Request, action: (actor: UdipActor) => Promise<Response>) {
+  if (request.method !== "GET" && request.method !== "HEAD" && request.headers.get("origin") !== getAuthConfig().AUTH_BASE_URL) return udipProblem("denied");
+  const access = await getUdipActor();
+  if (access.status !== "ok") return udipProblem(access.status);
+  if (!access.actor.isAdmin) return udipProblem("denied");
+  try { return await action(access.actor); }
+  catch { return udipProblem("unavailable"); }
+}

@@ -8,6 +8,25 @@ import { udipCaseListQuerySchema, udipMaxFileBytes } from '../../apps/web/src/sc
 import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
 import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
 import { applyUdipRedactions, suggestUdipRedactions } from '../../apps/web/src/server/udip/redaction.ts';
+import { rankUdipPrecedents } from '../../apps/web/src/server/udip/recommendations.ts';
+
+test('UDIP matches questions independently, reports another period and exposes no historical amounts', () => {
+  const requested = { from: '2026-01-01', to: '2026-12-31' };
+  const precedent = { from: '2025-01-01', to: '2025-12-31' };
+  const transport = { id: 'transport', text: 'Koszty utrzymania przystanków', period: null, dataSought: ['koszty'] };
+  const insurance = { id: 'insurance', text: 'Składki emerytalne', period: null, dataSought: ['ubezpieczenie'] };
+  const summary = { topic: 'Komunikacja miejska', tags: ['transport'], dataSought: [], period: requested, questions: [transport, insurance] };
+  const unit = { kind: 'department', departmentCode: 'TRANSPORT', departmentName: 'Transport' };
+  const data = { summary: { ...summary, period: precedent, questions: [{ ...transport, text: `${transport.text} 58 231,99` }] },
+    units: [], questionUnits: [{ questionId: transport.id, units: [unit] }], caseSignature: 'BKS.IV.1431.7.2025' };
+  const [match, miss] = rankUdipPrecedents(summary, [{ id: 'record', title: 'Przystanki', sourceName: 'Archiwum', version: 1, data }]);
+  assert.equal(match.suggestedUnits[0].unit.departmentCode, 'TRANSPORT');
+  assert.equal(match.similarCases[0].source.caseSignature, 'BKS.IV.1431.7.2025');
+  assert.deepEqual(match.similarCases[0].periodDifference, { requested, precedent });
+  assert.equal(JSON.stringify(match).includes('231,99'), false);
+  assert.equal(miss.requiresManualSelection, true);
+  assert.equal(miss.suggestedUnits.length, 0);
+});
 
 test('UDIP redaction removes selected occurrences and merges overlapping UTF-16 ranges after emoji', () => {
   const address = 'kontakt@example.org';
