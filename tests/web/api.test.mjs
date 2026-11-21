@@ -6,6 +6,7 @@ import { API_ROUTES } from '../../apps/web/src/config/api-routes.ts';
 import { readOpenAiReply, streamOpenAiChat } from '../../apps/web/src/server/openai-chat.ts';
 import { udipCaseListQuerySchema, udipMaxFileBytes } from '../../apps/web/src/schemas/udip.ts';
 import { readUdipUpload } from '../../apps/web/src/server/udip/upload.ts';
+import { extractUdipText } from '../../apps/web/src/server/udip/extraction.ts';
 
 function udipUpload({ dates = ['2026-11-21', '2026-12-05'], name = 'wniosek.pdf', bytes = '%PDF-1.7\n', duplicate = false } = {}) {
   const form = new FormData();
@@ -35,6 +36,30 @@ test('UDIP intake bounds uploads even when Content-Length is missing', async () 
     body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(udipMaxFileBytes + 70_000)); } }),
   });
   assert.equal((await readUdipUpload(request)).status, 'tooLarge');
+});
+
+function udipPdf(pageText) {
+  const stream = pageText ? `BT /F1 14 Tf 72 720 Td (${pageText}) Tj ET` : '';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let data = '%PDF-1.4\n';
+  const offsets = objects.map((object, i) => {
+    const offset = data.length;
+    data += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    return `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  return new TextEncoder().encode(data + `xref\n0 6\n0000000000 65535 f \n${offsets.join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${data.length}\n%%EOF\n`);
+}
+
+test('UDIP reads a PDF text layer locally and distinguishes pages without text', async () => {
+  const file = { fileName: 'request.pdf', mediaType: 'application/pdf' };
+  assert.equal(await extractUdipText({ ...file, content: udipPdf('Current case evidence') }), 'Current case evidence');
+  assert.equal(await extractUdipText({ ...file, content: udipPdf('') }), null);
 });
 
 function providerStream(events) {

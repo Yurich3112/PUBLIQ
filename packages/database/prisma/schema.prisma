@@ -161,13 +161,18 @@ model UdipDocument {
   fileName       String?                   @map("file_name") @db.VarChar(255)
   mediaType      String                    @map("media_type") @db.VarChar(120)
   size           Int
-  content        Bytes
+  content        Bytes?
+  fileVersionUuid String?                  @unique @map("file_version_uuid") @db.Uuid
+  clientRequestId String?                  @map("client_request_id") @db.Uuid
+  requestHash    String?                   @map("request_hash") @db.Char(64)
   extractedText  String?                   @map("extracted_text")
   createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   case           UdipCase                  @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
   assignment     UdipDepartmentAssignment? @relation(fields: [caseUuid, assignmentUuid], references: [caseUuid, uuid], onDelete: Restrict)
   uploadedBy     User                      @relation(fields: [uploadedByUuid], references: [uuid], onDelete: Restrict)
+  fileVersion    FileVersion?              @relation(fields: [fileVersionUuid], references: [uuid], onDelete: Restrict)
 
+  @@unique([caseUuid, uploadedByUuid, clientRequestId], map: "udip_document_reply_request_key")
   @@index([caseUuid, createdAt, uuid])
   @@index([caseUuid, assignmentUuid])
   @@map("udip_document")
@@ -179,6 +184,7 @@ model UdipDraftVersion {
   createdByUuid String   @map("created_by_uuid") @db.Uuid
   version       Int
   text          String
+  points        Json?
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   case          UdipCase @relation(fields: [caseUuid], references: [uuid], onDelete: Restrict)
   createdBy     User     @relation(fields: [createdByUuid], references: [uuid], onDelete: Restrict)
@@ -432,6 +438,7 @@ model FileVersion {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   file          File     @relation(fields: [fileUuid], references: [uuid], onDelete: Restrict)
   createdBy     User     @relation("FileVersionCreatedBy", fields: [createdByUuid], references: [uuid], onDelete: Restrict)
+  udipDocument  UdipDocument?
 
   @@unique([fileUuid, version])
   @@index([createdByUuid])

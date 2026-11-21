@@ -47,6 +47,25 @@ Modulon already has Next.js, Prisma, Better Auth and Keycloak, file handling and
 - After final edits, analyze the entire letter with PII-Tracer. The clerk adjusts or supplies ranges. The supervisor approves the specific pair of letter version and redaction revision. Any edit to either requires fresh approval.
 - Export a fresh TXT from that approved pair by removing protected values at generation time. Keep original text out of the rendered copy and export response. Record the date of successful external sending separately when the clerk supplies it.
 
+### Stage 2 API for documents and template drafts
+
+The following routes share `/api/v1/udip/cases/{caseId}`. Mutations use the same-origin session checks from Modulon.
+
+| Method and path | Request and behavior |
+| --- | --- |
+| `POST /assignments` | An owner or administrator registers `departmentCode` and `departmentName`. |
+| `POST /assignments/{assignmentId}/documents` | Send `multipart/form-data` with `file` (PDF or DOCX) and `clientRequestId`, or JSON with `text` and `clientRequestId`. Records the response for that department. |
+| `GET /documents/{documentId}` | Read the document state and extracted text for the current case. |
+| `GET /documents/{documentId}/original` | Download the original file as an attachment. |
+| `PATCH /documents/{documentId}` | Save a manual transcription using `{ "text": "…" }` and set the read state to `ready`. |
+| `POST /drafts` | Generate a draft with `{ expectedVersion, points }`. Each point has `question` and `sourceDocumentIds` from the current case. Start with `expectedVersion: 0`. |
+| `PUT /drafts` | Save a new version with the same structure and a `text` field on each edited point. Set `expectedVersion` to the version being edited. A stale version returns `409` with `currentVersion`. |
+| `GET /drafts[?version=N]` | Read the latest or the selected saved draft with its version, rendered text and source references. |
+
+New originals are linked to an immutable Modulon file version in S3/SeaweedFS. The file catalog protects referenced originals from removal. Earlier originals stored in PostgreSQL remain readable. Text extraction runs after registration, so an empty or unreadable PDF stays in the calendar with read state `failed`. This stage uses local PDF and DOCX parsers and allows manual correction. OCR is a later integration.
+
+Template generation uses only readable department replies in the same case. A point without usable replies shows `Brak materiału`. Existing replies are cited by document ID. Draft retrieval returns the working version for review. Final approved TXT export remains a later step.
+
 ### Knowledge base and manual fallback
 
 - Administrators upload acts and archived replies. Store original source and version metadata, validated anonymized matching content, proposed cluster and similar record links. The admin graph can show pending placement. Matching reads only approved anonymized versions.

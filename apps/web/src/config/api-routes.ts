@@ -19,6 +19,11 @@ export const API_ROUTES = {
   udip: {
     cases: `${API_BASE_PATH}/udip/cases`,
     caseDetail: `${API_BASE_PATH}/udip/cases/{caseId}`,
+    assignments: `${API_BASE_PATH}/udip/cases/{caseId}/assignments`,
+    departmentReplies: `${API_BASE_PATH}/udip/cases/{caseId}/assignments/{assignmentId}/documents`,
+    document: `${API_BASE_PATH}/udip/cases/{caseId}/documents/{documentId}`,
+    documentOriginal: `${API_BASE_PATH}/udip/cases/{caseId}/documents/{documentId}/original`,
+    drafts: `${API_BASE_PATH}/udip/cases/{caseId}/drafts`,
   },
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,

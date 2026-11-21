@@ -1,13 +1,13 @@
 import "server-only";
+import type { z } from "zod";
+import { readUdipBody } from "./body.ts";
 import { udipCaseUploadSchema, udipMaxFileBytes, type UdipCaseUpload } from "../../schemas/udip.ts";
 
 const maxBodyBytes = udipMaxFileBytes + 64 * 1024;
-const wordMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const wordMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-export type UdipUpload = {
-  metadata: UdipCaseUpload;
-  file: { fileName: string; mediaType: string; content: Uint8Array<ArrayBuffer> };
-};
+export type UdipFile = { fileName: string; mediaType: string; content: Uint8Array<ArrayBuffer> };
+export type UdipUpload = { metadata: UdipCaseUpload; file: UdipFile };
 
 function isWordPackage(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -38,51 +38,18 @@ function isWordPackage(bytes: Uint8Array) {
   return false;
 }
 
-export async function readUdipUpload(request: Request) {
+export async function readUdipMultipart<T extends z.ZodType>(request: Request, schema: T) {
   const contentType = request.headers.get("content-type");
   if (!contentType || !/^multipart\/form-data\s*;/i.test(contentType)) return { status: "invalid" } as const;
-  if (Number(request.headers.get("content-length")) > maxBodyBytes) return { status: "tooLarge" } as const;
-  const reader = request.body?.getReader();
-  if (!reader) return { status: "invalid" } as const;
-
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    void reader.cancel().catch(() => undefined);
-  }, 30_000);
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > maxBodyBytes) {
-        await reader.cancel().catch(() => undefined);
-        return { status: "tooLarge" } as const;
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return { status: timedOut ? "timeout" : "invalid" } as const;
-  } finally {
-    clearTimeout(timer);
-    reader.releaseLock();
-  }
-  if (timedOut) return { status: "timeout" } as const;
-
+  const body = await readUdipBody(request, maxBodyBytes);
+  if (body.status !== "ok") return body;
   let form: FormData;
-  try {
-    form = await new Response(new Uint8Array(Buffer.concat(chunks, length)), {
-      headers: { "Content-Type": contentType },
-    }).formData();
-  } catch {
-    return { status: "invalid" } as const;
-  }
+  try { form = await new Response(body.bytes, { headers: { "Content-Type": contentType } }).formData(); }
+  catch { return { status: "invalid" } as const; }
   const fields = Array.from(form.keys());
   if (new Set(fields).size !== fields.length) return { status: "invalid" } as const;
   const { file, ...metadata } = Object.fromEntries(form);
-  const parsed = udipCaseUploadSchema.safeParse(metadata);
+  const parsed = schema.safeParse(metadata);
   if (!parsed.success || !(file instanceof File) || !file.size) return { status: "invalid" } as const;
   if (file.size > udipMaxFileBytes) return { status: "tooLarge" } as const;
   const fileName = file.name.normalize("NFC").trim();
@@ -92,6 +59,9 @@ export async function readUdipUpload(request: Request) {
   const mediaType = name.endsWith(".pdf") && Buffer.from(content.subarray(0, 5)).toString("latin1") === "%PDF-"
     ? "application/pdf" : name.endsWith(".docx") && isWordPackage(content) ? wordMediaType : null;
   if (!mediaType) return { status: "unsupportedMediaType" } as const;
-  const upload: UdipUpload = { metadata: parsed.data, file: { fileName, mediaType, content } };
-  return { status: "ok" as const, upload };
+  return { status: "ok" as const, upload: { metadata: parsed.data, file: { fileName, mediaType, content } } };
+}
+
+export function readUdipUpload(request: Request) {
+  return readUdipMultipart(request, udipCaseUploadSchema);
 }

@@ -4,13 +4,12 @@ import type { Prisma, PrismaClient } from "@modulon-poc/database";
 import type { UdipCaseCreated, UdipCaseDetail, UdipCaseList, UdipCaseListQuery, UdipCaseSummary } from "../../schemas/udip.ts";
 import { getDatabase } from "../database.ts";
 import type { UdipActor } from "./access.ts";
+import { documentFields, documentSummary, finishUdipExtraction, storeUdipFile } from "./documents.ts";
+import { caseScope } from "./scope.ts";
 import type { UdipUpload } from "./upload.ts";
 
 const caseFields = {
   uuid: true, signature: true, applicantName: true, subject: true, receivedDate: true, dueDate: true, status: true,
-} as const;
-const documentFields = {
-  uuid: true, fileName: true, mediaType: true, size: true, kind: true, status: true, assignmentUuid: true,
 } as const;
 const registeredCaseFields = {
   ...caseFields,
@@ -34,14 +33,6 @@ function caseSummary(row: Prisma.UdipCaseGetPayload<{ select: typeof caseFields 
     receivedDate: row.receivedDate.toISOString().slice(0, 10), dueDate: row.dueDate.toISOString().slice(0, 10),
     daysRemaining: (row.dueDate.getTime() - Date.parse(today)) / dayMs, processStatus: row.status,
   };
-}
-
-function documentSummary({ uuid, assignmentUuid, ...row }: Prisma.UdipDocumentGetPayload<{ select: typeof documentFields }>) {
-  return { ...row, id: uuid, assignmentId: assignmentUuid };
-}
-
-function caseScope(actor: UdipActor): Prisma.UdipCaseWhereInput {
-  return actor.isAdmin ? {} : { OR: [{ ownerUuid: actor.id }, { assignments: { some: { assigneeUuid: actor.id } } }] };
 }
 
 export async function listUdipCases(actor: UdipActor, query: UdipCaseListQuery): Promise<UdipCaseList> {
@@ -96,14 +87,18 @@ export async function registerUdipCase(actor: UdipActor, { metadata, file }: Udi
   const requestHash = createHash("sha256")
     .update(JSON.stringify([receivedDate, dueDate, applicantName, subject, file.fileName, file.mediaType]))
     .update(file.content).digest("hex");
-  const resolveReplay = (row: NonNullable<Awaited<ReturnType<typeof readRegisteredCase>>>) => row.requestHash === requestHash
-    ? { status: "replayed" as const, body: registeredResponse(row) } : { status: "conflict" as const };
+  const complete = async (row: NonNullable<Awaited<ReturnType<typeof readRegisteredCase>>>) => {
+    const body = registeredResponse(row);
+    return { ...body, document: await finishUdipExtraction(body.document, file) };
+  };
+  const resolveReplay = async (row: NonNullable<Awaited<ReturnType<typeof readRegisteredCase>>>) => row.requestHash === requestHash
+    ? { status: "replayed" as const, body: await complete(row) } : { status: "conflict" as const };
   const existing = await readRegisteredCase(db, actor.id, clientRequestId);
   if (existing) return resolveReplay(existing);
 
   const year = Number(receivedDate.slice(0, 4));
   try {
-    const row = await db.$transaction(async tx => {
+    const row = await storeUdipFile(actor.id, file, async (tx, fileVersionUuid) => {
       const [counter] = await tx.$queryRaw<{ last_number: number }[]>`
         INSERT INTO udip_case_counter (year, last_number) VALUES (${year}::integer, 1)
         ON CONFLICT (year) DO UPDATE SET last_number = udip_case_counter.last_number + 1
@@ -113,16 +108,42 @@ export async function registerUdipCase(actor: UdipActor, { metadata, file }: Udi
         data: {
           ownerUuid: actor.id, clientRequestId, requestHash, signature: `BKS.IV.1431.${counter.last_number}.${year}`,
           year, applicantName, subject, receivedDate: new Date(receivedDate), dueDate: new Date(dueDate),
-          documents: { create: { ...file, kind: "request", size: file.content.byteLength, uploadedByUuid: actor.id } },
+          documents: { create: { fileName: file.fileName, mediaType: file.mediaType, fileVersionUuid,
+            kind: "request", size: file.content.byteLength, uploadedByUuid: actor.id } },
         },
         select: registeredCaseFields,
       });
     });
-    return { status: "created" as const, body: registeredResponse(row) };
+    return { status: "created" as const, body: await complete(row) };
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") {
       const replay = await readRegisteredCase(db, actor.id, clientRequestId);
       if (replay) return resolveReplay(replay);
+    }
+    throw error;
+  }
+}
+
+export async function registerUdipAssignment(actor: UdipActor, caseUuid: string, input: { departmentCode: string; departmentName: string }) {
+  const db = getDatabase();
+  if (!await db.udipCase.findFirst({ where: { uuid: caseUuid, ...(actor.isAdmin ? {} : { ownerUuid: actor.id }) },
+    select: { uuid: true } })) return { status: "missing" } as const;
+  const where = { caseUuid_departmentCode: { caseUuid, departmentCode: input.departmentCode } };
+  const select = { uuid: true, departmentCode: true, departmentName: true, respondedAt: true } as const;
+  const summarize = ({ uuid: id, respondedAt, ...row }: Prisma.UdipDepartmentAssignmentGetPayload<{ select: typeof select }>) =>
+    ({ ...row, id, respondedAt: respondedAt?.toISOString() ?? null });
+  const readExisting = () => db.udipDepartmentAssignment.findUnique({ where, select });
+  const reply = (row: NonNullable<Awaited<ReturnType<typeof readExisting>>>) => row.departmentName === input.departmentName
+    ? { status: "replayed" as const, assignment: summarize(row) } : { status: "conflict" as const };
+  const existing = await readExisting();
+  if (existing) return reply(existing);
+  try {
+    const row = await db.udipDepartmentAssignment.create({ data: { ...input, caseUuid }, select });
+    return { status: "created" as const, assignment: summarize(row) };
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002") {
+      const replay = await readExisting();
+      if (replay) return reply(replay);
     }
     throw error;
   }
