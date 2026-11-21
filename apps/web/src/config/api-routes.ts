@@ -20,6 +20,11 @@ export const API_ROUTES = {
   cases: `${API_BASE_PATH}/cases`,
   caseById: `${API_BASE_PATH}/cases/{uuid}`,
   caseDepartments: `${API_BASE_PATH}/cases/{uuid}/departments`,
+  knowledgeMatch: `${API_BASE_PATH}/knowledge/match`,
+  knowledgeInstitutions: `${API_BASE_PATH}/knowledge/institutions`,
+  knowledgeTemplates: `${API_BASE_PATH}/knowledge/templates`,
+  adminKnowledgeGraph: `${API_BASE_PATH}/admin/knowledge/graph`,
+  adminKnowledgeIngest: `${API_BASE_PATH}/admin/knowledge/ingest`,
   session: {
     status: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.status}`,
     renew: `${AUTH_BASE_PATH}${AUTH_ENDPOINTS.renew}`,

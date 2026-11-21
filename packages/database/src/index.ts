@@ -11,9 +11,14 @@ export {
   UdipRoutingType,
   UdipTemplateType,
   UdipDeptStatus,
+  KbNodeType,
+  KbEdgeRelation,
+  InstitutionKind,
 } from './generated/prisma/client.js';
 export * from './system-config.js';
 export * from './udip-cases.js';
+export * from './knowledge-graph.js';
+export * from './institutions-and-templates.js';
 export type {
   User,
   Session,
@@ -28,6 +33,11 @@ export type {
   Product,
   UdipCase,
   UdipDepartmentQuery,
+  KbCluster,
+  KbNode,
+  KbEdge,
+  InstitutionRegistry,
+  ResponseTemplateArchive,
 } from './generated/prisma/client.js';
 
 export interface DatabaseOptions {

@@ -76,6 +76,7 @@ model User {
   assignedUdipCases UdipCase[]               @relation("UdipCaseAssignee")
   createdUdipCases  UdipCase[]               @relation("UdipCaseCreatedBy")
   updatedUdipCases  UdipCase[]               @relation("UdipCaseUpdatedBy")
+  createdKbNodes    KbNode[]                 @relation("KbNodeCreatedBy")
 
   @@map("user")
 }
@@ -309,6 +310,7 @@ model File {
   products      Product[]     @relation("ProductImage")
   udipSourceCases UdipCase[]  @relation("UdipCaseSourceFile")
   udipDeptReplies UdipDepartmentQuery[] @relation("UdipDeptReplyFile")
+  responseTemplates ResponseTemplateArchive[] @relation("ResponseTemplateFile")
 
   @@index([createdByUuid])
   @@index([updatedByUuid])
@@ -556,6 +558,7 @@ model UdipCase {
   createdBy              User?                 @relation("UdipCaseCreatedBy", fields: [createdByUuid], references: [uuid], onDelete: SetNull)
   updatedBy              User?                 @relation("UdipCaseUpdatedBy", fields: [updatedByUuid], references: [uuid], onDelete: SetNull)
   departmentQueries      UdipDepartmentQuery[]
+  knowledgeNode          KbNode?
 
   @@unique([year, sequenceNumber])
   @@index([year, receivedDate(sort: Asc), sequenceNumber(sort: Asc)])
@@ -591,4 +594,139 @@ model UdipDepartmentQuery {
   @@index([caseUuid, sortOrder])
   @@index([replyFileUuid])
   @@map("udip_department_query")
+}
+
+/// Entity kind stored in the Relational Knowledge Graph ("Baza Wiedzy").
+enum KbNodeType {
+  CASE
+  LEGAL_ACT
+  DEPARTMENT
+  EXTERNAL_AUTHORITY
+}
+
+/// Weighted relational link type between two Knowledge Graph nodes.
+enum KbEdgeRelation {
+  SIMILAR_CASE
+  ROUTED_TO_DEPT
+  REDIRECTED_TO_EXTERNAL
+  CITES_LAW
+}
+
+/// Topic cluster grouping similar Knowledge Graph nodes for fast routing & Admin visualization.
+model KbCluster {
+  uuid        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  slug        String   @unique @db.VarChar(80)
+  name        String   @db.VarChar(160)
+  color       String   @default("#2563EB") @db.VarChar(7)
+  description String   @default("") @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  nodes       KbNode[]
+
+  @@map("kb_cluster")
+}
+
+/// Compact ~200-token structured JSON node stored in Baza Wiedzy.
+model KbNode {
+  uuid           String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  nodeType       KbNodeType  @map("node_type")
+  /// Stable external key, e.g. BKS.IV.1431.307.2025, DEPT:WES, EXT:ZUS, LAW:ZARZADZENIE_535_2024.
+  externalKey    String      @unique @map("external_key") @db.VarChar(80)
+  title          String      @db.VarChar(255)
+  summary        String
+  /// Compact structured JSON entry (case_id, tags, summary, routed_to, outcome_type, template_file, legal_basis).
+  structuredJson Json        @map("structured_json")
+  /// Normalized Polish keywords for instant Jaccard + TF-IDF matching.
+  tags           String[]    @default([])
+  clusterUuid    String      @map("cluster_uuid") @db.Uuid
+  /// Optional 1:1 link to the originating UdipCase when learned from a completed case.
+  sourceCaseUuid String?     @unique @map("source_case_uuid") @db.Uuid
+  createdByUuid  String?     @map("created_by") @db.Uuid
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  cluster        KbCluster   @relation(fields: [clusterUuid], references: [uuid], onDelete: Restrict)
+  sourceCase     UdipCase?   @relation(fields: [sourceCaseUuid], references: [uuid], onDelete: SetNull)
+  createdBy      User?       @relation("KbNodeCreatedBy", fields: [createdByUuid], references: [uuid], onDelete: SetNull)
+  outgoingEdges  KbEdge[]    @relation("KbEdgeSource")
+  incomingEdges  KbEdge[]    @relation("KbEdgeTarget")
+  responseTemplates ResponseTemplateArchive[]
+
+  @@index([nodeType, clusterUuid])
+  @@index([clusterUuid])
+  @@index([createdByUuid])
+  @@map("kb_node")
+}
+
+/// Weighted relational edge connecting similar cases, departments, external authorities, and legal acts.
+model KbEdge {
+  uuid           String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sourceNodeUuid String         @map("source_node_uuid") @db.Uuid
+  targetNodeUuid String         @map("target_node_uuid") @db.Uuid
+  relationType   KbEdgeRelation @map("relation_type")
+  weight         Float          @default(1.0)
+  reason         String?        @db.VarChar(255)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  sourceNode     KbNode         @relation("KbEdgeSource", fields: [sourceNodeUuid], references: [uuid], onDelete: Cascade)
+  targetNode     KbNode         @relation("KbEdgeTarget", fields: [targetNodeUuid], references: [uuid], onDelete: Cascade)
+
+  @@unique([sourceNodeUuid, targetNodeUuid, relationType])
+  @@index([sourceNodeUuid])
+  @@index([targetNodeUuid])
+  @@index([relationType, weight(sort: Desc)])
+  @@map("kb_edge")
+}
+
+/// Classification of an organizational unit in the Institution & Department Registry.
+enum InstitutionKind {
+  /// Our coordinating office (Biuro Komunikacji Społecznej — BKS / AIP).
+  OUR_BKS_OFFICE
+  /// Another internal UM Bydgoszcz department (Wydział / Biuro / Jednostka).
+  INTERNAL_DEPARTMENT
+  /// External authority where UM Bydgoszcz is NOT the data holder (Art. 4 ust. 3 UDIP: ZUS, ZDMiKP, WKZ).
+  EXTERNAL_INSTITUTION
+}
+
+/// Separate dedicated table: Registry of UM Bydgoszcz departments and external institutions,
+/// exported as compact JSON for local LLM routing (Cases 3 & 4).
+model InstitutionRegistry {
+  uuid             String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code             String          @unique @db.VarChar(40)
+  kind             InstitutionKind
+  name             String          @db.VarChar(255)
+  shortDescription String          @map("short_description") @db.VarChar(500)
+  competencies     String[]        @default([])
+  email            String?         @db.VarChar(200)
+  address          String?         @db.VarChar(255)
+  phone            String?         @db.VarChar(80)
+  legalBasis       String?         @map("legal_basis") @db.VarChar(255)
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([kind, isActive])
+  @@map("institution_registry")
+}
+
+/// Separate dedicated table: Archived reference response PDFs & extracted anonymized letter bodies
+/// referenced by Baza Wiedzy when a similar case is matched (Case 2 & Case 3 drafting).
+model ResponseTemplateArchive {
+  uuid              String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  caseNumber        String           @unique @map("case_number") @db.VarChar(40)
+  fileName          String           @map("file_name") @db.VarChar(255)
+  mimeType          String           @default("application/pdf") @map("mime_type") @db.VarChar(80)
+  templateType      UdipTemplateType @default(MERIT_RESPONSE) @map("template_type")
+  summary           String           @db.VarChar(500)
+  /// Full anonymized text of the past response so the LLM can draft a matching email/letter.
+  extractedBodyText String           @map("extracted_body_text")
+  fileUuid          String?          @map("file_uuid") @db.Uuid
+  kbNodeUuid        String?          @map("kb_node_uuid") @db.Uuid
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  file              File?            @relation("ResponseTemplateFile", fields: [fileUuid], references: [uuid], onDelete: SetNull)
+  kbNode            KbNode?          @relation(fields: [kbNodeUuid], references: [uuid], onDelete: SetNull)
+
+  @@index([templateType])
+  @@index([kbNodeUuid])
+  @@index([fileUuid])
+  @@map("response_template_archive")
 }
