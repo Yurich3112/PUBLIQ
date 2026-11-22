@@ -37,8 +37,8 @@ services:
     <<: *qa-runtime
     image: ${WEB_IMAGE:-modulon-web:qa}
     container_name: ${ENV_MODE:?Required}-web-${INSTANCE_INDEX:-0}
-    cpus: ${WEB_CPU_LIMIT:-1.0}
-    mem_limit: ${WEB_MEMORY_LIMIT:-512m}
+    cpus: ${WEB_CPU_LIMIT:-2.0}
+    mem_limit: ${WEB_MEMORY_LIMIT:-1g}
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
@@ -77,8 +77,11 @@ services:
       S3_AVATAR_BUCKET: "${S3_AVATAR_BUCKET}"
       S3_AVATAR_ACCESS_KEY: "${S3_AVATAR_ACCESS_KEY}"
       S3_AVATAR_SECRET_KEY: "${S3_AVATAR_SECRET_KEY}"
+      PYWORKER_URL: http://pyworker:8010
+      PYWORKER_API_TOKEN: "${PYWORKER_API_TOKEN}"
+      PYWORKER_ALLOW_PRIVATE_NETWORK: "true"
     volumes: [*qa-ca]
-    networks: [edge, database]
+    networks: [edge, database, workers]
     depends_on:
       db: {condition: service_healthy}
       auth: {condition: service_healthy}
@@ -132,10 +135,10 @@ services:
       PYWORKER_TASK_TIMEOUT_SECONDS: "${PYWORKER_TASK_TIMEOUT_SECONDS:-5}"
       PYWORKER_LOG_LEVEL: "${PYWORKER_LOG_LEVEL:-info}"
     read_only: true
-    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m,mode=1777"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
     networks: [workers]
-    cpus: ${PYWORKER_CPU_LIMIT:-1.0}
-    mem_limit: ${PYWORKER_MEMORY_LIMIT:-384m}
+    cpus: ${PYWORKER_CPU_LIMIT:-2.0}
+    mem_limit: ${PYWORKER_MEMORY_LIMIT:-1536m}
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health/ready', timeout=3)"]
       interval: 10s
