@@ -1,8 +1,46 @@
-"""Stage 2A: Lightweight word-level bounding-box detector with gap splitting."""
+"""Stage 2A: Lightweight word-level bounding-box detector with gap splitting & tilt angle detection."""
 
+import math
 from typing import Any
 
 from pyworker.ocr.interfaces import DetectedBox
+
+
+def _normalize_angle_deg(angle: float) -> float:
+    """Normalize text-baseline angle to [-90, 90] and snap near-horizontal (<1.5°) to 0.0."""
+    while angle > 90.0:
+        angle -= 180.0
+    while angle < -90.0:
+        angle += 180.0
+    if abs(angle) < 1.5:
+        return 0.0
+    return round(angle, 1)
+
+
+def _polygon_angle_deg(polygon: Any) -> float:
+    """Compute baseline tilt angle in degrees from a 4-point DBNet quadrilateral."""
+    if polygon is None or len(polygon) < 4:
+        return 0.0
+    try:
+        p0 = (float(polygon[0][0]), float(polygon[0][1]))
+        p1 = (float(polygon[1][0]), float(polygon[1][1]))
+        p2 = (float(polygon[2][0]), float(polygon[2][1]))
+        p3 = (float(polygon[3][0]), float(polygon[3][1]))
+    except (TypeError, ValueError, IndexError):
+        return 0.0
+    top_dx, top_dy = p1[0] - p0[0], p1[1] - p0[1]
+    bot_dx, bot_dy = p2[0] - p3[0], p2[1] - p3[1]
+    side_dx, side_dy = p3[0] - p0[0], p3[1] - p0[1]
+    top_len = math.hypot(top_dx, top_dy)
+    side_len = math.hypot(side_dx, side_dy)
+    # Use the longer edge as the text baseline (handles vertical/rotated stamps too).
+    if side_len > top_len * 1.4:
+        dx, dy = side_dx, side_dy
+    else:
+        dx, dy = (top_dx + bot_dx) * 0.5, (top_dy + bot_dy) * 0.5
+    if math.hypot(dx, dy) < 4.0:
+        return 0.0
+    return _normalize_angle_deg(math.degrees(math.atan2(dy, dx)))
 
 
 def _split_wide_box_by_projection(
@@ -10,13 +48,14 @@ def _split_wide_box_by_projection(
     bbox: tuple[int, int, int, int],
     score: float,
     text: str | None = None,
+    angle_deg: float = 0.0,
 ) -> list[DetectedBox]:
     """Subdivide a multi-word region into individual word boxes using adaptive vertical ink gaps."""
     import numpy as np
 
     x, y, w, h = bbox
-    if h <= 0 or w < max(36, int(h * 1.5)):
-        return [DetectedBox(bbox=bbox, score=score, text=text)]
+    if abs(angle_deg) >= 6.0 or h <= 0 or w < max(36, int(h * 1.5)):
+        return [DetectedBox(bbox=bbox, score=score, text=text, angle_deg=angle_deg)]
 
     roi = binary_inv[y : y + h, x : x + w]
     if roi.size == 0:
@@ -93,11 +132,11 @@ def _split_wide_box_by_projection(
     tokens = text.split() if text else []
     if len(tokens) == len(sub_bboxes):
         return [
-            DetectedBox(bbox=bb, score=score, text=tok)
+            DetectedBox(bbox=bb, score=score, text=tok, angle_deg=angle_deg)
             for bb, tok in zip(sub_bboxes, tokens, strict=True)
         ]
     return [
-        DetectedBox(bbox=bb, score=score, text=(text if idx == 0 else None))
+        DetectedBox(bbox=bb, score=score, text=(text if idx == 0 else None), angle_deg=angle_deg)
         for idx, bb in enumerate(sub_bboxes)
     ]
 
@@ -243,8 +282,15 @@ class RapidOcrWordDetector:
             h = y1 - y0
             if w < 5 or h < 5:
                 continue
+            angle = _polygon_angle_deg(polygon)
             boxes.extend(
-                _split_wide_box_by_projection(binary, (x0, y0, w, h), score, text=draft_text)
+                _split_wide_box_by_projection(
+                    binary,
+                    (x0, y0, w, h),
+                    score,
+                    text=draft_text,
+                    angle_deg=angle,
+                )
             )
         return boxes or self._fallback.detect(image_rgb)
 

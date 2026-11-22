@@ -11,6 +11,7 @@ interface RenderedLineGroup {
   lineId: string;
   zone: OcrLine["zone"];
   bbox: readonly [number, number, number, number];
+  angleDeg: number;
   words: OcrWord[];
   fontCqw: number;
 }
@@ -32,6 +33,7 @@ function buildAlignedLines(
     lineId: string;
     zone: OcrLine["zone"];
     bbox: readonly [number, number, number, number];
+    angleDeg: number;
     words: OcrWord[];
     medWordH: number;
     fitCqw: number;
@@ -59,6 +61,7 @@ function buildAlignedLines(
       lineId: line.line_id,
       zone: line.zone,
       bbox: line.bbox,
+      angleDeg: line.angle_deg ?? 0,
       words,
       medWordH: medH,
       fitCqw: Math.min(heightFitCqw, widthFitCqw),
@@ -72,6 +75,7 @@ function buildAlignedLines(
       lineId: `orphan_${orphan.id}`,
       zone: orphan.zone,
       bbox: orphan.bbox,
+      angleDeg: orphan.angle_deg ?? 0,
       words: [orphan],
       medWordH: h,
       fitCqw: ((h * 0.56) / page.width) * 100,
@@ -99,6 +103,7 @@ function buildAlignedLines(
       lineId: group.lineId,
       zone: group.zone,
       bbox: group.bbox,
+      angleDeg: group.angleDeg,
       words: group.words,
       fontCqw,
     };
@@ -281,6 +286,11 @@ export function TranscriptionPane({
                     maxWidth: `${maxWidthPct}%`,
                     fontSize: `clamp(9px, ${line.fontCqw}cqw, 22px)`,
                     lineHeight: 1.15,
+                    transform:
+                      Math.abs(line.angleDeg) >= 1.5
+                        ? `rotate(${line.angleDeg}deg)`
+                        : undefined,
+                    transformOrigin: "left center",
                   }}
                   className="absolute flex flex-wrap items-baseline gap-x-[0.32em] gap-y-0.5"
                 >

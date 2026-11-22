@@ -40,6 +40,7 @@ class DetectedBox:
     bbox: tuple[int, int, int, int]
     score: float = 1.0
     text: str | None = None
+    angle_deg: float = 0.0
 
 
 @dataclass(slots=True)
@@ -48,6 +49,7 @@ class GroupedLine:
     zone: OcrZone
     bbox: tuple[int, int, int, int]
     boxes: list[DetectedBox]
+    angle_deg: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

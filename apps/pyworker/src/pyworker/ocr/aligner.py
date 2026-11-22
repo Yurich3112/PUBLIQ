@@ -229,6 +229,7 @@ def align_line_words(
                 line_id=line.line_id,
                 text=token.text.strip(),
                 bbox=bbox,
+                angle_deg=line.angle_deg,
                 confidence=conf,
                 zone=line.zone,
                 aligned_by=aligned_by,

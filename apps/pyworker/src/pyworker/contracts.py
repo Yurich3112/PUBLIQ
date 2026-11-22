@@ -43,6 +43,7 @@ class OcrWord(BaseModel):
     line_id: str = Field(min_length=1, max_length=64)
     text: str = Field(max_length=256)
     bbox: tuple[int, int, int, int]
+    angle_deg: float = Field(default=0.0, ge=-180.0, le=180.0)
     confidence: float = Field(ge=0.0, le=1.0)
     zone: OcrZone
     aligned_by: OcrAlignedBy
@@ -61,6 +62,7 @@ class OcrLine(BaseModel):
     line_id: str = Field(min_length=1, max_length=64)
     zone: OcrZone
     bbox: tuple[int, int, int, int]
+    angle_deg: float = Field(default=0.0, ge=-180.0, le=180.0)
     text: str = Field(max_length=4096)
     word_ids: list[str]
 

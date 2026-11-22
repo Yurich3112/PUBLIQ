@@ -292,6 +292,17 @@ def _build_numbered_strip_sheet(
         x1 = min(img_w, x + w + 8)
         y1 = min(img_h, y + h + 3)
         sub = page_rgb[y0:y1, x0:x1]
+        if abs(line.angle_deg) >= 2.5 and sub.size > 0:
+            sh, sw = sub.shape[:2]
+            mat = cv2.getRotationMatrix2D((sw / 2.0, sh / 2.0), line.angle_deg, 1.0)
+            sub = cv2.warpAffine(
+                sub,
+                mat,
+                (sw, sh),
+                flags=cv2.INTER_CUBIC,
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=(255, 255, 255),
+            )
         if h >= 42 and sub.size > 0:
             gray = cv2.cvtColor(sub, cv2.COLOR_RGB2GRAY)
             bold = cv2.erode(

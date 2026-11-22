@@ -141,6 +141,7 @@ export function ScanCanvas({
           >
             {page.words.map(word => {
               const [x, y, w, h] = word.bbox;
+              const angle = word.angle_deg ?? 0;
               const isSelected = word.id === selectedWordId;
               const isLowConfidenceUnedited = isWordUncertain(word, editedWords);
               const displayText = getWordDisplayText(word, editedWords);
@@ -156,6 +157,10 @@ export function ScanCanvas({
                   ? "#dc2626"
                   : "transparent";
               const strokeWidth = isSelected ? 3.5 : isLowConfidenceUnedited ? 2.5 : 0;
+              const transform =
+                Math.abs(angle) >= 1.5
+                  ? `rotate(${angle} ${x + w / 2} ${y + h / 2})`
+                  : undefined;
 
               return (
                 <g key={word.id}>
@@ -166,6 +171,7 @@ export function ScanCanvas({
                     width={w}
                     height={h}
                     rx={3}
+                    transform={transform}
                     fill={fill}
                     stroke={stroke}
                     strokeWidth={strokeWidth}

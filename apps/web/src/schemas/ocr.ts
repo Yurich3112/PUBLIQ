@@ -25,6 +25,7 @@ export const ocrWordSchema = z.object({
   line_id: z.string().min(1).max(64),
   text: z.string().max(256),
   bbox: ocrBboxSchema,
+  angle_deg: z.number().min(-180).max(180).optional().default(0),
   confidence: z.number().min(0).max(1),
   zone: ocrZoneSchema,
   aligned_by: ocrAlignedBySchema,
@@ -34,6 +35,7 @@ export const ocrLineSchema = z.object({
   line_id: z.string().min(1).max(64),
   zone: ocrZoneSchema,
   bbox: ocrBboxSchema,
+  angle_deg: z.number().min(-180).max(180).optional().default(0),
   text: z.string().max(4096),
   word_ids: z.array(z.string().min(1).max(64)),
 }).strict();

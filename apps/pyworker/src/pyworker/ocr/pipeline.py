@@ -239,6 +239,7 @@ class OcrPipeline:
                     line_id=grp.line_id,
                     zone=grp.zone,
                     bbox=grp.bbox,
+                    angle_deg=grp.angle_deg,
                     text=line_text,
                     word_ids=[w.id for w in line_words],
                 )

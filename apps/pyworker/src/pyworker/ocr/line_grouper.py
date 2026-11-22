@@ -14,7 +14,24 @@ def _union_bbox(boxes: list[DetectedBox]) -> tuple[int, int, int, int]:
     return (x0, y0, max(1, x1 - x0), max(1, y1 - y0))
 
 
-def _same_line(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+def _median_angle(boxes: list[DetectedBox]) -> float:
+    angles = sorted(b.angle_deg for b in boxes)
+    if not angles:
+        return 0.0
+    mid = len(angles) // 2
+    med = angles[mid] if len(angles) % 2 == 1 else (angles[mid - 1] + angles[mid]) / 2.0
+    return 0.0 if abs(med) < 1.5 else round(med, 1)
+
+
+def _same_line(
+    a: tuple[int, int, int, int],
+    b: tuple[int, int, int, int],
+    *,
+    a_angle: float = 0.0,
+    b_angle: float = 0.0,
+) -> bool:
+    if abs(a_angle - b_angle) > 12.0:
+        return False
     ay0, ah = a[1], a[3]
     by0, bh = b[1], b[3]
     min_h = max(1, min(ah, bh))
@@ -93,7 +110,12 @@ def group_boxes_into_lines(
             if cluster_zone != zone:
                 continue
             ref_bbox = _union_bbox(cluster_boxes)
-            if _same_line(ref_bbox, box.bbox):
+            if _same_line(
+                ref_bbox,
+                box.bbox,
+                a_angle=_median_angle(cluster_boxes),
+                b_angle=box.angle_deg,
+            ):
                 cluster_boxes.append(box)
                 placed = True
                 break
@@ -122,6 +144,7 @@ def group_boxes_into_lines(
                     zone=zone,
                     bbox=_union_bbox(seg),
                     boxes=seg,
+                    angle_deg=_median_angle(seg),
                 )
             )
 
