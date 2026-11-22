@@ -291,12 +291,38 @@ export class Qa {
     await this.stream([...context.args, 'run', '--rm', '--no-deps', 'maintenance', 'node', 'scripts/qa-maintenance.mjs', 'deploy'], context.runtime);
   }
 
+  async ensureOllamaBridge(context) {
+    const pyworkerName = containerName(context.env, 'pyworker');
+    const edgeNetwork = `${context.env.STACK_NAME}_edge`;
+    try { await this.execute(['network', 'connect', edgeNetwork, pyworkerName], process.env); } catch { /* already connected */ }
+    const probe = "import os,urllib.request;u=os.environ.get('PYWORKER_OLLAMA_URL','http://host.docker.internal:11434');urllib.request.urlopen(u+'/api/tags',timeout=3).read()";
+    try {
+      await this.execute(['exec', pyworkerName, 'python', '-c', probe], process.env);
+      return;
+    } catch { /* host.docker.internal:11434 not reachable yet */ }
+    if (process.platform === 'win32') {
+      try {
+        await exec('powershell', ['-NoProfile', '-Command',
+          '[Environment]::SetEnvironmentVariable("OLLAMA_HOST","0.0.0.0:11434","User"); Stop-Process -Name "ollama*" -Force -ErrorAction SilentlyContinue; Start-Process "ollama" -ArgumentList "serve" -WindowStyle Hidden'
+        ], { timeout: 10000, windowsHide: true });
+        await new Promise(r => setTimeout(r, 2000));
+        await this.execute(['exec', pyworkerName, 'python', '-c', probe], process.env);
+        this.log('[ok] Local Ollama rebound to 0.0.0.0:11434 for Docker QA containers.');
+        return;
+      } catch { /* fallback to modulon-ollama container check */ }
+    }
+    try {
+      await this.execute(['start', 'modulon-ollama'], process.env);
+    } catch { /* optional host/container Ollama */ }
+  }
+
   async start() {
     const context = await this.check();
     await this.images(context);
     await this.stream([...context.args, 'up', '--detach', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '240', ...INFRA], context.runtime);
     await this.stream([...context.args, 'run', '--rm', '--no-deps', 'maintenance', 'node', 'scripts/qa-maintenance.mjs', 'verify'], context.runtime);
     await this.stream([...context.args, 'up', '--detach', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '120', ...APPS], context.runtime);
+    await this.ensureOllamaBridge(context);
     this.log('[ok] QA services are running.');
   }
 }
