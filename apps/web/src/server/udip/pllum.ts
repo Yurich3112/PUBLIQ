@@ -22,7 +22,8 @@ function numberedQuestions(text: string) {
 }
 
 async function complete<T extends z.ZodType>(instruction: string, data: unknown, schema: T) {
-  const base = localModelUrl(process.env.UDIP_PLLUM_URL ?? process.env.UDIP_LLM_URL);
+  const privateHost = process.env.PYWORKER_ALLOW_PRIVATE_NETWORK === "true" ? "host.docker.internal" : undefined;
+  const base = localModelUrl(process.env.UDIP_PLLUM_URL ?? process.env.UDIP_LLM_URL, privateHost);
   const timeout = Number(process.env.UDIP_PLLUM_TIMEOUT_MS ?? "75000");
   if (!base || !Number.isInteger(timeout) || timeout < 500 || timeout > 120_000) return null;
   const primaryModel = process.env.UDIP_PLLUM_MODEL ?? process.env.UDIP_LLM_MODEL ?? "gemma4:e4b";

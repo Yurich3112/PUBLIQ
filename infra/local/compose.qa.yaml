@@ -80,6 +80,11 @@ services:
       PYWORKER_URL: http://pyworker:8010
       PYWORKER_API_TOKEN: "${PYWORKER_API_TOKEN}"
       PYWORKER_ALLOW_PRIVATE_NETWORK: "true"
+      UDIP_PLLUM_URL: "${UDIP_PLLUM_URL:-http://host.docker.internal:11434}"
+      UDIP_PLLUM_MODEL: "${UDIP_PLLUM_MODEL:-gemma4:e4b}"
+      UDIP_LLM_FALLBACK_MODEL: "${UDIP_LLM_FALLBACK_MODEL:-gemma4:e4b}"
+      PYWORKER_OLLAMA_URL: "${PYWORKER_OLLAMA_URL:-http://host.docker.internal:11434}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes: [*qa-ca]
     networks: [edge, database, workers]
     depends_on:
@@ -130,10 +135,15 @@ services:
       PYWORKER_API_TOKEN: "${PYWORKER_API_TOKEN}"
       PYWORKER_HOST: 0.0.0.0
       PYWORKER_ALLOW_NETWORK_BIND: "true"
+      PYWORKER_ALLOW_PRIVATE_NETWORK: "true"
       PYWORKER_PORT: "8010"
       PYWORKER_MAX_CONCURRENCY: "${PYWORKER_MAX_CONCURRENCY:-4}"
-      PYWORKER_TASK_TIMEOUT_SECONDS: "${PYWORKER_TASK_TIMEOUT_SECONDS:-5}"
+      PYWORKER_TASK_TIMEOUT_SECONDS: "${PYWORKER_TASK_TIMEOUT_SECONDS:-15}"
       PYWORKER_LOG_LEVEL: "${PYWORKER_LOG_LEVEL:-info}"
+      PYWORKER_OLLAMA_URL: "${PYWORKER_OLLAMA_URL:-http://host.docker.internal:11434}"
+      PYWORKER_OCR_VLM_MODEL: "${PYWORKER_OCR_VLM_MODEL:-gemma4:e4b}"
+      PYWORKER_OCR_VLM_FALLBACK_MODEL: "${PYWORKER_OCR_VLM_FALLBACK_MODEL:-gemma4:e4b}"
+    extra_hosts: ["host.docker.internal:host-gateway"]
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
     networks: [workers]
