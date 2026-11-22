@@ -697,33 +697,7 @@ export async function ingestKnowledgeNode(
       : null;
     let createdCluster = false;
 
-    if (!targetCluster && matchResult.topMatch && matchResult.topMatch.score >= KB_CLUSTER_ASSIGN_THRESHOLD) {
-      targetCluster =
-        existingClusters.find(c => c.slug === matchResult.topMatch?.clusterSlug) ?? null;
-    }
-
-    // If no twin CASE scored >= 0.45, check if the routed department / external authority already belongs to a cluster
-    if (!targetCluster && input.isExternalAuthority) {
-      targetCluster =
-        existingClusters.find(c => c.slug === 'zewnetrzne_brak_dysponenta') ?? null;
-    }
-    if (!targetCluster && (input.routedTo?.length ?? 0) > 0) {
-      for (const deptName of input.routedTo ?? []) {
-        const normDept = normalizePolishText(deptName);
-        const deptNode = existingNodes.find(
-          n =>
-            n.nodeType === KbNodeType.DEPARTMENT
-            && (normalizePolishText(n.title).includes(normDept)
-              || normDept.includes(normalizePolishText(n.title))),
-        );
-        if (deptNode) {
-          targetCluster = existingClusters.find(c => c.uuid === deptNode.clusterUuid) ?? null;
-          if (targetCluster) break;
-        }
-      }
-    }
-
-    // Also match directly against existing cluster descriptions & canonical entities (e.g. Astoria -> inwestycje_i_astoria)
+    // 1. Check canonical domain entities first (e.g. Astoria -> inwestycje_i_astoria)
     if (!targetCluster) {
       const detectedEntities = detectBydgoszczEntities(`${input.title} ${input.summary} ${tags.join(' ')}`);
       const entityToCluster: Record<string, string> = {
@@ -740,6 +714,33 @@ export async function ingestKnowledgeNode(
         const slug = entityToCluster[entity];
         if (slug) {
           targetCluster = existingClusters.find(c => c.slug === slug) ?? null;
+          if (targetCluster) break;
+        }
+      }
+    }
+
+    // 2. Next check twin CASE match (>= 0.45)
+    if (!targetCluster && matchResult.topMatch && matchResult.topMatch.score >= KB_CLUSTER_ASSIGN_THRESHOLD) {
+      targetCluster =
+        existingClusters.find(c => c.slug === matchResult.topMatch?.clusterSlug) ?? null;
+    }
+
+    // 3. Next check external authority / routed department cluster
+    if (!targetCluster && input.isExternalAuthority) {
+      targetCluster =
+        existingClusters.find(c => c.slug === 'zewnetrzne_brak_dysponenta') ?? null;
+    }
+    if (!targetCluster && (input.routedTo?.length ?? 0) > 0) {
+      for (const deptName of input.routedTo ?? []) {
+        const normDept = normalizePolishText(deptName);
+        const deptNode = existingNodes.find(
+          n =>
+            n.nodeType === KbNodeType.DEPARTMENT
+            && (normalizePolishText(n.title).includes(normDept)
+              || normDept.includes(normalizePolishText(n.title))),
+        );
+        if (deptNode) {
+          targetCluster = existingClusters.find(c => c.uuid === deptNode.clusterUuid) ?? null;
           if (targetCluster) break;
         }
       }

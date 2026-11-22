@@ -140,44 +140,37 @@ async function summarizeWithLocalOllama(
   const baseUrl = (process.env.PYWORKER_OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const model = await resolveOllamaModel(baseUrl);
 
-  const snippet = extractedText.replace(/\s+/g, " ").trim().slice(0, 3200);
-  const compactInst = institutions
-    .map(i => `${i.code} (${i.kind}): ${i.name}`)
-    .join("\n");
+  const snippet = stripBoilerplate(extractedText).slice(0, 1200);
+  const deptNames = institutions
+    .filter(i => i.kind !== "OUR_BKS_OFFICE")
+    .map(i => `${i.name}${i.kind === "EXTERNAL_INSTITUTION" ? " [ZEWNĘTRZNA]" : ""}`)
+    .join("; ");
 
   const prompt = [
-    "Jesteś analitykiem BKS Urzędu Miasta Bydgoszczy (UDIP). Przygotuj zwięzły rekord JSON do Bazy Wiedzy.",
-    "Zwróć WYŁĄCZNIE poprawny obiekt JSON z polami:",
-    "- nodeType: \"CASE\" lub \"LEGAL_ACT\"",
-    "- title: krótki merytoryczny tytuł po polsku (np. \"Kompleks Astoria — dokumentacja budowlana i techniczna\")",
-    "- summary: 2 konkretne zdania po polsku czego dotyczy wniosek (BEZ formułek 'Na podstawie art. 2 ust. 1')",
-    "- tags: tablica 4-6 czystych, merytorycznych tagów tematycznych po polsku w mianowniku (np. [\"kompleks astoria\", \"inwestycje miejskie\", \"budownictwo\", \"dokumentacja projektowa\"]) — ZAKAZ słów typu 'art.', 'ust.', 'następującym', nazw plików i dat!",
-    "- routedTo: tablica dokładnych nazw wydziałów z poniższej listy (tylko pasujące)",
-    "- isExternalAuthority: true jeśli właściwa jest instytucja zewnętrzna (ZUS/ZDMiKP/WKZ), inaczej false",
-    "- externalAuthority: nazwa instytucji zewnętrznej lub null",
-    "- legalBasis: np. [\"Art. 13 ust. 1 UDIP\"]",
-    "",
-    "Dostępne jednostki:",
-    compactInst,
-    "",
+    "Streść polski dokument UDIP do JSON dla Bazy Wiedzy UM Bydgoszczy.",
+    'Zwróć TYLKO JSON: {"nodeType":"CASE","title":"krótki tytuł","summary":"1-2 zdania merytoryczne","tags":["4-5 krótkich polskich tagów tematycznych w mianowniku, bez art./ust./dat"],"routedTo":["pasujące wydziały z listy"],"isExternalAuthority":false,"externalAuthority":null,"legalBasis":["Art. 13 ust. 1 UDIP"]}',
+    `Jednostki: ${deptNames}`,
     `Plik: ${fileName}`,
-    `Tekst dokumentu:\n${snippet}`,
+    `Treść: ${snippet}`,
   ].join("\n");
 
   try {
     const response = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         model,
         prompt,
         format: "json",
         stream: false,
-        options: { temperature: 0.1, num_predict: 450 },
+        options: { temperature: 0.1, num_predict: 240 },
       }),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn("kb_ollama_http_error", response.status);
+      return null;
+    }
     const payload = (await response.json()) as { response?: string };
     if (!payload.response) return null;
     const cleanedJson = payload.response
