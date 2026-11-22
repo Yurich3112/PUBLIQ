@@ -1,5 +1,4 @@
 import "server-only";
-import { z } from "zod";
 import {
   detectExternalAuthorityHint,
   exportInstitutionRegistryForLlm,
@@ -11,24 +10,25 @@ import {
 } from "@modulon-poc/database";
 import { getDatabase } from "./database.ts";
 import { extractUdipText } from "./udip/extraction.ts";
+import { summarizeWithPllum } from "./udip/pllum.ts";
 import { readUdipScan } from "./udip/worker.ts";
 
-const aiSummarySchema = z.object({
-  nodeType: z.enum(["CASE", "LEGAL_ACT", "DEPARTMENT", "EXTERNAL_AUTHORITY"]).optional(),
-  externalKey: z.string().trim().min(2).max(80).optional(),
-  title: z.string().trim().min(2).max(255).optional(),
-  summary: z.string().trim().min(5).max(1200).optional(),
-  tags: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
-  routedTo: z.array(z.string().trim().min(1).max(200)).max(8).optional(),
-  isExternalAuthority: z.boolean().optional(),
-  externalAuthority: z.string().trim().max(255).nullable().optional(),
-  legalBasis: z.array(z.string().trim().min(1).max(160)).max(8).optional(),
-});
+interface AiSummaryFields {
+  nodeType?: "CASE" | "LEGAL_ACT" | "DEPARTMENT" | "EXTERNAL_AUTHORITY";
+  externalKey?: string;
+  title?: string;
+  summary?: string;
+  tags?: string[];
+  routedTo?: string[];
+  isExternalAuthority?: boolean;
+  externalAuthority?: string | null;
+  legalBasis?: string[];
+}
 
 export interface UploadedKbResult extends KbIngestResult {
   fileName: string;
   extractionMode: "digital_text" | "ocr_fallback" | "plain_text";
-  aiMode: "ollama_json" | "deterministic_fallback";
+  aiMode: "pllum_json" | "ollama_json" | "deterministic_fallback";
   extractedCharCount: number;
 }
 
@@ -108,43 +108,73 @@ function heuristicSummaryFromText(
   };
 }
 
+function stringArray(value: unknown, max: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+async function resolveOllamaModel(baseUrl: string): Promise<string> {
+  if (process.env.PYWORKER_OCR_VLM_MODEL) return process.env.PYWORKER_OCR_VLM_MODEL;
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = (await res.json()) as { models?: { name?: string }[] };
+      const first = data.models?.find(m => typeof m.name === "string")?.name;
+      if (first) return first;
+    }
+  } catch {
+    // fallback to default model name
+  }
+  return "gemma3:4b";
+}
+
 async function summarizeWithLocalOllama(
   fileName: string,
   extractedText: string,
   institutions: readonly LlmInstitutionJsonEntry[],
-): Promise<z.infer<typeof aiSummarySchema> | null> {
-  const baseUrl = process.env.PYWORKER_OLLAMA_URL || "http://127.0.0.1:11434";
-  const model = process.env.PYWORKER_OCR_VLM_MODEL || "gemma3:4b";
+): Promise<AiSummaryFields | null> {
+  const baseUrl = (process.env.PYWORKER_OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const model = await resolveOllamaModel(baseUrl);
 
-  // Keep prompt compact (~1200 tokens) so local 4B model responds in a few seconds
-  const snippet = extractedText.replace(/\s+/g, " ").trim().slice(0, 3500);
+  const snippet = extractedText.replace(/\s+/g, " ").trim().slice(0, 3200);
   const compactInst = institutions
-    .map(i => `${i.code} (${i.kind}): ${i.name} [${i.competencies.slice(0, 5).join(", ")}]`)
+    .map(i => `${i.code} (${i.kind}): ${i.name}`)
     .join("\n");
 
   const prompt = [
-    "Jesteś asystentem BKS Urzędu Miasta Bydgoszczy (UDIP). Z poniższego dokumentu przygotuj zwięzły rekord JSON do Bazy Wiedzy.",
-    "Zwróć WYŁĄCZNIE poprawny obiekt JSON o polach:",
-    '{"nodeType":"CASE"|"LEGAL_ACT","externalKey":"sygnatura np. BKS.IV.1431.X.2026 lub LAW:...","title":"krótki tytuł po polsku","summary":"2 zdania streszczenia (~40-80 słów) po polsku","tags":["tag1","tag2","tag3","tag4","tag5"],"routedTo":["dokładna nazwa wydziału z listy jeśli dotyczy"],"isExternalAuthority":false,"externalAuthority":null,"legalBasis":["Art. 13 ust. 1 UDIP"]}',
+    "Jesteś analitykiem BKS Urzędu Miasta Bydgoszczy (UDIP). Przygotuj zwięzły rekord JSON do Bazy Wiedzy.",
+    "Zwróć WYŁĄCZNIE poprawny obiekt JSON z polami:",
+    "- nodeType: \"CASE\" lub \"LEGAL_ACT\"",
+    "- title: krótki merytoryczny tytuł po polsku (np. \"Kompleks Astoria — dokumentacja budowlana i techniczna\")",
+    "- summary: 2 konkretne zdania po polsku czego dotyczy wniosek (BEZ formułek 'Na podstawie art. 2 ust. 1')",
+    "- tags: tablica 4-6 czystych, merytorycznych tagów tematycznych po polsku w mianowniku (np. [\"kompleks astoria\", \"inwestycje miejskie\", \"budownictwo\", \"dokumentacja projektowa\"]) — ZAKAZ słów typu 'art.', 'ust.', 'następującym', nazw plików i dat!",
+    "- routedTo: tablica dokładnych nazw wydziałów z poniższej listy (tylko pasujące)",
+    "- isExternalAuthority: true jeśli właściwa jest instytucja zewnętrzna (ZUS/ZDMiKP/WKZ), inaczej false",
+    "- externalAuthority: nazwa instytucji zewnętrznej lub null",
+    "- legalBasis: np. [\"Art. 13 ust. 1 UDIP\"]",
     "",
-    "Lista jednostek UM Bydgoszcz i instytucji zewnętrznych:",
+    "Dostępne jednostki:",
     compactInst,
     "",
-    `Nazwa pliku: ${fileName}`,
-    `Treść dokumentu:\n${snippet}`,
+    `Plik: ${fileName}`,
+    `Tekst dokumentu:\n${snippet}`,
   ].join("\n");
 
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/generate`, {
+    const response = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(90_000),
       body: JSON.stringify({
         model,
         prompt,
         format: "json",
         stream: false,
-        options: { temperature: 0.1, num_predict: 400 },
+        options: { temperature: 0.1, num_predict: 450 },
       }),
     });
     if (!response.ok) return null;
@@ -154,9 +184,33 @@ async function summarizeWithLocalOllama(
       .replace(/^```json\s*/i, "")
       .replace(/```$/i, "")
       .trim();
-    const rawJson: unknown = JSON.parse(cleanedJson);
-    const parsed = aiSummarySchema.safeParse(rawJson);
-    return parsed.success ? parsed.data : null;
+    const obj = JSON.parse(cleanedJson) as Record<string, unknown>;
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+
+    const validTypes = new Set(["CASE", "LEGAL_ACT", "DEPARTMENT", "EXTERNAL_AUTHORITY"]);
+    return {
+      nodeType:
+        typeof obj.nodeType === "string" && validTypes.has(obj.nodeType)
+          ? (obj.nodeType as AiSummaryFields["nodeType"])
+          : undefined,
+      externalKey: typeof obj.externalKey === "string" && obj.externalKey.trim().length >= 3
+        ? obj.externalKey.trim().slice(0, 80)
+        : undefined,
+      title: typeof obj.title === "string" && obj.title.trim().length >= 3
+        ? obj.title.trim().slice(0, 255)
+        : undefined,
+      summary: typeof obj.summary === "string" && obj.summary.trim().length >= 10
+        ? obj.summary.trim().slice(0, 1200)
+        : undefined,
+      tags: stringArray(obj.tags, 8),
+      routedTo: stringArray(obj.routedTo, 6),
+      isExternalAuthority: typeof obj.isExternalAuthority === "boolean" ? obj.isExternalAuthority : undefined,
+      externalAuthority:
+        typeof obj.externalAuthority === "string" && obj.externalAuthority.trim()
+          ? obj.externalAuthority.trim().slice(0, 255)
+          : null,
+      legalBasis: stringArray(obj.legalBasis, 6),
+    };
   } catch {
     return null;
   }
@@ -205,15 +259,36 @@ export async function processAdminKnowledgeUpload(params: {
   const db = getDatabase();
   const institutions = await exportInstitutionRegistryForLlm(db);
   const heuristic = heuristicSummaryFromText(fileName, extractedText, institutions);
-  const ai = await summarizeWithLocalOllama(fileName, extractedText, institutions);
 
+  // 1. Prefer PLLuM 4B if configured (UDIP_PLLUM_URL), 2. otherwise use local Ollama (gemma3/gemma4)
+  let aiMode: "pllum_json" | "ollama_json" | "deterministic_fallback" = "deterministic_fallback";
+  let ai: AiSummaryFields | null = null;
+
+  const pllum = await summarizeWithPllum(extractedText).catch(() => null);
+  if (pllum) {
+    aiMode = "pllum_json";
+    ai = {
+      title: pllum.topic,
+      summary: pllum.questions.map(q => q.text).join(" ").slice(0, 600) || pllum.topic,
+      tags: pllum.tags,
+    };
+  } else {
+    const ollama = await summarizeWithLocalOllama(fileName, extractedText, institutions);
+    if (ollama) {
+      aiMode = "ollama_json";
+      ai = ollama;
+    }
+  }
+
+  // Always preserve official BKS signature if present in fileName/text
+  const sigFromDoc = fileName.match(CASE_SIGNATURE_RE)?.[0]?.toUpperCase();
   const rawTags = ai?.tags && ai.tags.length > 0 ? ai.tags : heuristic.tags;
   const cleanTags = extractAutoTags("", rawTags);
 
   const merged = {
     nodeType: (ai?.nodeType as KbNodeType | undefined) ?? heuristic.nodeType,
-    externalKey: ai?.externalKey || heuristic.externalKey,
-    title: ai?.title || heuristic.title,
+    externalKey: sigFromDoc || ai?.externalKey || heuristic.externalKey,
+    title: ai?.title ? (sigFromDoc ? `${sigFromDoc} — ${ai.title}` : ai.title) : heuristic.title,
     summary: ai?.summary || heuristic.summary,
     tags: cleanTags.length > 0 ? cleanTags : heuristic.tags,
     routedTo: ai?.routedTo && ai.routedTo.length > 0 ? ai.routedTo : heuristic.routedTo,
@@ -229,7 +304,7 @@ export async function processAdminKnowledgeUpload(params: {
     ...ingested,
     fileName,
     extractionMode,
-    aiMode: ai ? "ollama_json" : "deterministic_fallback",
+    aiMode,
     extractedCharCount: extractedText.length,
   };
 }

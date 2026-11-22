@@ -677,7 +677,10 @@ export async function ingestKnowledgeNode(
 ): Promise<KbIngestResult> {
   return db.$transaction(async tx => {
     const existingNodesRaw = await tx.kbNode.findMany({ include: { cluster: true } });
-    const existingNodes = existingNodesRaw.map(toNodeRecord);
+    const incomingKey = input.externalKey.trim();
+    const existingNodes = existingNodesRaw
+      .map(toNodeRecord)
+      .filter(n => n.externalKey !== incomingKey);
     const existingClusters = await tx.kbCluster.findMany();
 
     const tags = extractAutoTags(`${input.title} ${input.summary}`, input.tags ?? []);
