@@ -401,7 +401,7 @@ export function UdipCalendarDashboard({ polish }: { polish: boolean }) {
           applicantName: quickApplicant.trim(),
           subject: quickSubject.trim(),
           registryNumber: quickRegistry.trim() || null,
-          sourceMode: "email",
+          sourceMode: "email_text",
           verifiedRequestText: quickSubject.trim(),
           departments: quickDepts.map(departmentName => ({ departmentName })),
         }),
@@ -491,7 +491,7 @@ export function UdipCalendarDashboard({ polish }: { polish: boolean }) {
             className="inline-flex min-h-9 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
           >
             <FileEarmarkPlus aria-hidden="true" className="size-4" />
-            {polish ? "Nowy wniosek (PDF / OCR)" : "New Request (PDF / OCR)"}
+            {polish ? "Nowy wniosek (PDF/WORD)" : "New Request (PDF/WORD)"}
           </Link>
         </div>
       </header>

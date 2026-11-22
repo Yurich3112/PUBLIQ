@@ -95,21 +95,49 @@ function buildAlignedLines(
     Math.min(2.8, median(standardBodyFits) || ((pageMedWordH * 1.04) / page.width) * 100),
   );
 
-  return rawGroups.map(group => {
-    const ratio = group.medWordH / pageMedWordH;
+  const normalized: RenderedLineGroup[] = rawGroups.map(group => {
+    const [gx, gy, gw, gh] = group.bbox;
+    // Some PDF fonts emit an inflated upward bbox height for missing-glyph / soft-hyphen boxes,
+    // causing the line's top edge to jump up onto the previous line. Anchor such lines to their baseline.
+    const isInflatedBodyBox = group.zone !== "stamp" && gh > pageMedWordH * 1.45;
+    const adjustedY = isInflatedBodyBox
+      ? Math.max(0, Math.round(gy + gh - pageMedWordH))
+      : gy;
+    const adjustedH = isInflatedBodyBox ? Math.round(pageMedWordH) : gh;
+
+    const effectiveH = isInflatedBodyBox ? pageMedWordH : group.medWordH;
+    const ratio = effectiveH / pageMedWordH;
     const fontCqw =
-      group.zone !== "stamp" && ratio >= 0.68 && ratio <= 1.6
+      group.zone !== "stamp" && ratio >= 0.68
         ? uniformBodyCqw
-        : Math.max(0.72, Math.min(2.5, uniformBodyCqw * Math.max(0.65, Math.min(1.35, ratio))));
+        : Math.max(0.72, Math.min(uniformBodyCqw, uniformBodyCqw * Math.max(0.65, ratio)));
+
     return {
       lineId: group.lineId,
       zone: group.zone,
-      bbox: group.bbox,
+      bbox: [gx, adjustedY, gw, adjustedH] as const,
       angleDeg: group.angleDeg,
       words: group.words,
       fontCqw,
     };
   });
+
+  // Final safety pass: prevent any two horizontally overlapping lines from colliding vertically.
+  const sorted = [...normalized].sort((a, b) => a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
+  const placed: RenderedLineGroup[] = [];
+  for (const current of sorted) {
+    const [cx, rawCy, cw, ch] = current.bbox;
+    let cy = rawCy;
+    for (const prev of placed) {
+      const [px, py, pw, ph] = prev.bbox;
+      const horizOverlap = cx < px + pw - 2 && px < cx + cw - 2;
+      if (horizOverlap && cy < py + ph * 0.85 && cy + ch > py + ph * 0.15) {
+        cy = Math.min(page.height - ch, Math.round(py + Math.max(ph, pageMedWordH) * 1.05));
+      }
+    }
+    placed.push({ ...current, bbox: [cx, cy, cw, ch] as const });
+  }
+  return placed;
 }
 
 export function TranscriptionPane({
@@ -132,6 +160,8 @@ export function TranscriptionPane({
   confirmDisabledReason,
   onBackToScan,
   readOnly = false,
+  fileName,
+  confidencePercent,
 }: {
   page: OcrPage;
   zoom: number;
@@ -152,6 +182,8 @@ export function TranscriptionPane({
   confirmDisabledReason?: string;
   onBackToScan?: () => void;
   readOnly?: boolean;
+  fileName?: string;
+  confidencePercent?: number;
 }) {
   const t = useTranslations("ocr");
   const [editingWordId, setEditingWordId] = useState<string | null>(null);
@@ -316,8 +348,20 @@ export function TranscriptionPane({
               onClick={onBackToScan}
             >
               <ArrowLeft aria-hidden="true" className="size-3.5" />
-              Wróć do skanu
+              Wróć
             </Button>
+          )}
+          {readOnly && fileName && (
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-xs font-semibold text-foreground" title={fileName}>
+                {fileName}
+              </span>
+              {typeof confidencePercent === "number" && (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                  {confidencePercent}%
+                </span>
+              )}
+            </div>
           )}
           {!readOnly && (
             <>

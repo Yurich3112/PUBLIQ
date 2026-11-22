@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  BoxArrowUpRight,
   CheckCircleFill,
   ClipboardCheck,
   Download,
@@ -34,7 +35,7 @@ export function DepartmentDocPreviewModal({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [serverPdfAvailable, setServerPdfAvailable] = useState(false);
+  const [serverPdfBlobUrl, setServerPdfBlobUrl] = useState<string | null>(null);
 
   const serverPdfUrl = doc?.caseUuid ? `/api/v1/cases/${doc.caseUuid}/preview` : null;
 
@@ -50,26 +51,30 @@ export function DepartmentDocPreviewModal({
   useEffect(() => {
     if (!doc || doc.previewUrl || !serverPdfUrl) return;
     const controller = new AbortController();
-    async function checkPdf() {
+    let createdUrl: string | null = null;
+    async function loadPdfBlob() {
       try {
         const res = await fetch(serverPdfUrl!, {
-          method: "HEAD",
+          method: "GET",
           credentials: "same-origin",
           signal: controller.signal,
         });
-        if (!controller.signal.aborted) {
-          setServerPdfAvailable(res.ok);
-        }
+        if (!res.ok) return;
+        const contentType = res.headers.get("content-type") ?? "";
+        if (!contentType.includes("pdf")) return;
+        const blob = await res.blob();
+        if (controller.signal.aborted) return;
+        createdUrl = URL.createObjectURL(blob);
+        setServerPdfBlobUrl(createdUrl);
       } catch {
-        if (!controller.signal.aborted) {
-          setServerPdfAvailable(false);
-        }
+        // Fallback to clean text preview card
       }
     }
-    void checkPdf();
+    void loadPdfBlob();
     return () => {
       controller.abort();
-      setServerPdfAvailable(false);
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      setServerPdfBlobUrl(null);
     };
   }, [doc, serverPdfUrl]);
 
@@ -79,9 +84,7 @@ export function DepartmentDocPreviewModal({
     doc.previewUrl &&
     (doc.previewMime === "application/pdf" || doc.replyFileName?.toLowerCase().endsWith(".pdf"))
       ? doc.previewUrl
-      : serverPdfAvailable
-        ? serverPdfUrl
-        : null;
+      : serverPdfBlobUrl;
 
   const isImageBlob = Boolean(doc.previewUrl && doc.previewMime?.startsWith("image/"));
 
@@ -222,6 +225,17 @@ export function DepartmentDocPreviewModal({
               : "Source department document preview (press ESC to close)."}
           </span>
           <div className="flex items-center gap-2">
+            {activePdfUrl && (
+              <a
+                href={activePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:bg-muted"
+              >
+                <BoxArrowUpRight aria-hidden="true" className="size-3.5" />
+                {polish ? "Otwórz w nowej karcie" : "Open in new tab"}
+              </a>
+            )}
             {doc.replyText && (
               <Button size="sm" tone="main-outline" onClick={() => void handleCopy()}>
                 <ClipboardCheck aria-hidden="true" className="size-3.5" />

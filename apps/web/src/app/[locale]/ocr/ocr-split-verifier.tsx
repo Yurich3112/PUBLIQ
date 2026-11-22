@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
-  CheckCircle,
-  ClipboardCheck,
   CloudUpload,
   EnvelopePaper,
   ExclamationTriangleFill,
@@ -29,6 +27,7 @@ import {
   KnowledgeRecommendationCard,
   type KnowledgeMatchResponse,
 } from "./knowledge-recommendation-card";
+import { VerifiedRoutingColumns } from "./verified-routing-columns";
 import {
   assembleVerifiedBodyText,
   buildClarificationNoticeDraft,
@@ -70,17 +69,50 @@ export function OcrSplitVerifier({
   const [registryNumber, setRegistryNumber] = useState("");
 
   const [verifiedPayload, setVerifiedPayload] = useState<VerifiedOcrPayload | null>(null);
-  const [copiedVerified, setCopiedVerified] = useState(false);
   const [clarificationOpen, setClarificationOpen] = useState(false);
   const [matchingKb, setMatchingKb] = useState(false);
   const [matchError, setMatchError] = useState(false);
   const [matchResult, setMatchResult] = useState<KnowledgeMatchResponse | null>(null);
+  const [caseRegistered, setCaseRegistered] = useState(false);
   const [intakeMode, setIntakeMode] = useState<"scan" | "text">("scan");
   const [pastedText, setPastedText] = useState("");
+
+  const resetWorkspace = useCallback(() => {
+    setAnalysis(null);
+    setFileName("");
+    setErrorCode(null);
+    setPageIndex(0);
+    setZoom(100);
+    setSelectedWordId(null);
+    setEditedWords({});
+    setAcceptedWords(new Set());
+    setDeletedWords(new Set());
+    setUndoStack([]);
+    setReceivedDate("");
+    setRegistryNumber("");
+    setVerifiedPayload(null);
+    setMatchResult(null);
+    setMatchError(false);
+    setCaseRegistered(false);
+  }, []);
+
+  // When navigating away from /ocr after a case was registered, reset so returning starts fresh.
+  useEffect(() => {
+    if (!caseRegistered) return;
+    return () => {
+      resetWorkspace();
+    };
+  }, [caseRegistered, resetWorkspace]);
 
   async function handleFileUpload(file: File) {
     setErrorCode(null);
     setVerifiedPayload(null);
+    const lowerName = file.name.toLowerCase();
+    const isAllowedExt = lowerName.endsWith(".pdf") || lowerName.endsWith(".docx");
+    if (!isAllowedExt) {
+      setErrorCode("unsupportedMediaType");
+      return;
+    }
     if (file.size === 0) {
       setErrorCode("invalid");
       return;
@@ -128,6 +160,11 @@ export function OcrSplitVerifier({
         return;
       }
 
+      const initialDate =
+        parsed.data.stamp_metadata.received_date ??
+        (file.name.toLowerCase().endsWith(".docx") ? new Date().toISOString().slice(0, 10) : "");
+      const initialRegistry = parsed.data.stamp_metadata.registry_number ?? "";
+
       setAnalysis(parsed.data);
       setPageIndex(0);
       setZoom(100);
@@ -136,8 +173,49 @@ export function OcrSplitVerifier({
       setAcceptedWords(new Set());
       setDeletedWords(new Set());
       setUndoStack([]);
-      setReceivedDate(parsed.data.stamp_metadata.received_date ?? "");
-      setRegistryNumber(parsed.data.stamp_metadata.registry_number ?? "");
+      setReceivedDate(initialDate);
+      setRegistryNumber(initialRegistry);
+
+      // Word (.docx) files are already clean digital text — skip word-by-word editing and jump straight to 3-column routing!
+      if (file.name.toLowerCase().endsWith(".docx")) {
+        const payload = buildVerifiedPayload({
+          analysis: parsed.data,
+          fileName: file.name,
+          editedWords: {},
+          deletedWords: new Set(),
+          receivedDate: initialDate || null,
+          registryNumber: initialRegistry || null,
+        });
+        setVerifiedPayload(payload);
+        setMatchResult(null);
+        setMatchError(false);
+        onConfirm?.(payload);
+        if (payload.verifiedText.trim().length >= 3) {
+          setMatchingKb(true);
+          try {
+            const kbRes = await fetch(API_ROUTES.knowledgeMatch, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                title: payload.fileName,
+                summary: payload.verifiedText,
+              }),
+            });
+            if (kbRes.ok) {
+              const kbJson = (await kbRes.json()) as KnowledgeMatchResponse;
+              if (kbJson.status === "ok") setMatchResult(kbJson);
+              else setMatchError(true);
+            } else {
+              setMatchError(true);
+            }
+          } catch {
+            setMatchError(true);
+          } finally {
+            setMatchingKb(false);
+          }
+        }
+      }
     } catch {
       setErrorCode("unavailable");
       setAnalysis(null);
@@ -283,13 +361,6 @@ export function OcrSplitVerifier({
     }
   }
 
-  async function handleCopyVerifiedText() {
-    if (!verifiedPayload) return;
-    await navigator.clipboard.writeText(verifiedPayload.verifiedText);
-    setCopiedVerified(true);
-    setTimeout(() => setCopiedVerified(false), 2000);
-  }
-
   async function handleAnalyzePastedText() {
     const clean = pastedText.trim();
     if (clean.length < 3) return;
@@ -370,7 +441,7 @@ export function OcrSplitVerifier({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         className="hidden"
         onChange={event => {
           const file = event.target.files?.[0];
@@ -392,18 +463,9 @@ export function OcrSplitVerifier({
             <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
             <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
           </div>
-
-          <Button
-            tone="main-outline"
-            disabled={loading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <CloudUpload aria-hidden="true" className="size-4" />
-            {t("uploadButton")}
-          </Button>
         </header>
-      ) : (
-        /* Ultra-compact single-row metadata strip; actions live directly in the left/right pane headers */
+      ) : !verifiedPayload ? (
+        /* Ultra-compact single-row metadata strip during OCR verification */
         <header className="flex shrink-0 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs">
           <span className="max-w-[260px] truncate font-semibold text-foreground" title={fileName}>
             {fileName}
@@ -444,7 +506,7 @@ export function OcrSplitVerifier({
             />
           </label>
         </header>
-      )}
+      ) : null}
 
       {errorCode && (
         <div
@@ -476,7 +538,7 @@ export function OcrSplitVerifier({
               }`}
             >
               <CloudUpload aria-hidden="true" className="size-3.5" />
-              Skan / PDF (OCR 1:1)
+              Plik (PDF / Word)
             </button>
             <button
               type="button"
@@ -615,6 +677,8 @@ export function OcrSplitVerifier({
                   deletedWords={deletedWords}
                   canUndo={false}
                   readOnly
+                  fileName={fileName}
+                  confidencePercent={Math.round(analysis.legibility.average_confidence * 100)}
                   onSelectWord={handleSelectWord}
                   onEditWord={handleEditWord}
                   onAcceptWord={handleAcceptWord}
@@ -622,45 +686,32 @@ export function OcrSplitVerifier({
                   onUndo={handleUndo}
                   onJumpNextUncertain={handleJumpNextUncertain}
                   onStepWord={handleStepWord}
-                  onBackToScan={() => setVerifiedPayload(null)}
+                  onBackToScan={() => {
+                    if (fileName.toLowerCase().endsWith(".docx")) {
+                      setAnalysis(null);
+                      setVerifiedPayload(null);
+                    } else {
+                      setVerifiedPayload(null);
+                    }
+                  }}
                 />
               </div>
 
-              {/* Column 2 (Center): Vertical departments list + Wnioskodawca + Przedmiot + Save */}
-              <div className="flex min-h-0 flex-col">
-                <KnowledgeRecommendationCard
-                  key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
-                  verifiedPayload={verifiedPayload}
-                  matching={matchingKb}
-                  matchError={matchError}
-                  matchResult={matchResult}
-                />
-              </div>
-
-              {/* Column 3 (Rightmost): Approved request text */}
-              <section
-                aria-label={t("verified.title")}
-                className="flex min-h-0 flex-col rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-3.5"
-              >
-                <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 border-b border-emerald-600/20 pb-2.5">
-                  <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
-                    <CheckCircle aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span className="truncate">{t("verified.title")}</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    tone="main-outline"
-                    className="min-w-[106px] shrink-0 justify-center whitespace-nowrap"
-                    onClick={() => void handleCopyVerifiedText()}
-                  >
-                    <ClipboardCheck aria-hidden="true" className="size-3.5 shrink-0" />
-                    {copiedVerified ? t("verified.copied") : "Kopiuj"}
-                  </Button>
-                </div>
-                <pre className="mt-2.5 min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground">
-                  {assembledPreview || verifiedPayload.verifiedText}
-                </pre>
-              </section>
+              {/* Columns 2 & 3: Knowledge Base + Metadata (center) & Department Select -> Editable Draft + Save (right) */}
+              <VerifiedRoutingColumns
+                key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
+                verifiedPayload={verifiedPayload}
+                requestText={assembledPreview || verifiedPayload.verifiedText}
+                receivedDate={receivedDate}
+                registryNumber={registryNumber}
+                onReceivedDateChange={setReceivedDate}
+                onRegistryNumberChange={setRegistryNumber}
+                matching={matchingKb}
+                matchError={matchError}
+                matchResult={matchResult}
+                onCaseRegistered={() => setCaseRegistered(true)}
+                onResetForNewRequest={resetWorkspace}
+              />
             </>
           )}
         </div>

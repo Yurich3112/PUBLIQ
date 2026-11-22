@@ -158,11 +158,11 @@ export function UdipHomeDashboard({
 
   if (!signedIn) {
     return (
-      <div className="mx-auto flex min-h-[74vh] w-full max-w-4xl flex-col items-center justify-center px-4 py-10">
+      <div className="mx-auto flex min-h-[74vh] w-full max-w-5xl flex-col items-center justify-center px-4 py-10">
         <div className="relative w-full overflow-hidden rounded-2xl border border-border bg-white shadow-sm dark:bg-surface">
           {/* Top Split Hero: Left Text + Right Big Logo on clear background */}
           <div className="grid grid-cols-1 items-center gap-6 sm:grid-cols-12">
-            <div className="z-10 flex flex-col items-center space-y-4 px-8 pt-10 text-center sm:col-span-6 sm:pb-6 sm:pl-12 sm:pr-4">
+            <div className="z-10 flex flex-col items-center space-y-4 px-8 pt-10 text-center sm:col-span-7 sm:pb-6 sm:pl-12 sm:pr-4">
               <div className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-xs">
                 <Bank aria-hidden="true" className="size-8" />
               </div>
@@ -171,18 +171,28 @@ export function UdipHomeDashboard({
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {polish ? "Urząd Miasta Bydgoszczy · BKS" : "City Hall of Bydgoszcz · BKS"}
                 </p>
-                <h1 className="text-4xl font-bold tracking-tight text-foreground">
-                  {polish ? "Asystent UDIP" : "UDIP Assistant"}
+                <h1 className="text-3xl font-bold tracking-tight text-foreground sm:whitespace-nowrap sm:text-4xl">
+                  {polish ? "PUBLIQ - Asystent UDIP" : "PUBLIQ - UDIP Assistant"}
                 </h1>
-                <p className="mx-auto max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  {polish
-                    ? "Obsługa wniosków o informację publiczną (Zarządzenie nr 535/2024)."
-                    : "Public information request management (Regulation No. 535/2024)."}
+                <p className="mx-auto max-w-md text-sm leading-relaxed text-muted-foreground">
+                  {polish ? (
+                    <>
+                      Obsługa wniosków o informację publiczną
+                      <br />
+                      (Zarządzenie nr 535/2024).
+                    </>
+                  ) : (
+                    <>
+                      Public information request management
+                      <br />
+                      (Regulation No. 535/2024).
+                    </>
+                  )}
                 </p>
               </div>
             </div>
 
-            <div className="relative flex items-start justify-end sm:col-span-6">
+            <div className="relative flex items-start justify-end sm:col-span-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo-big.png"
@@ -364,7 +374,7 @@ export function UdipHomeDashboard({
               </span>
             </div>
             <h2 className="text-sm font-semibold text-foreground sm:text-base">
-              {polish ? "Wgraj nowy wniosek (PDF / Skan)" : "Upload New Request (PDF / Scan)"}
+              {polish ? "Nowy wniosek (PDF/WORD)" : "New Request (PDF/WORD)"}
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {polish

@@ -117,9 +117,47 @@ function buildRedactedText(text: string, spans: readonly PiiSpan[]): string {
     .sort((a, b) => b.start - a.start);
   let out = text;
   for (const span of active) {
-    out = `${out.slice(0, span.start)}[ANONIMIZACJA: ${span.category}]${out.slice(span.end)}`;
+    const blocks = "█".repeat(Math.max(4, Math.min(28, span.value.length)));
+    out = `${out.slice(0, span.start)}${blocks}${out.slice(span.end)}`;
   }
   return out;
+}
+
+type PreviewSegment =
+  | { kind: "text"; text: string }
+  | { kind: "black"; id: string; category: string; chars: number }
+  | { kind: "grey"; id: string; text: string; category: string }
+  | { kind: "official"; id: string; text: string; category: string };
+
+function buildPreviewSegments(text: string, spans: readonly PiiSpan[]): PreviewSegment[] {
+  const ordered = [...spans].sort((a, b) => a.start - b.start);
+  const segments: PreviewSegment[] = [];
+  let cursor = 0;
+
+  for (const span of ordered) {
+    if (span.start < cursor || span.end > text.length) continue;
+    if (span.start > cursor) {
+      segments.push({ kind: "text", text: text.slice(cursor, span.start) });
+    }
+    if (span.isPublicOfficial) {
+      segments.push({ kind: "official", id: span.id, text: text.slice(span.start, span.end), category: span.category });
+    } else if (span.confirmedBlack) {
+      segments.push({
+        kind: "black",
+        id: span.id,
+        category: span.category,
+        chars: Math.max(4, Math.min(28, span.value.length)),
+      });
+    } else {
+      segments.push({ kind: "grey", id: span.id, text: text.slice(span.start, span.end), category: span.category });
+    }
+    cursor = span.end;
+  }
+
+  if (cursor < text.length) {
+    segments.push({ kind: "text", text: text.slice(cursor) });
+  }
+  return segments;
 }
 
 function composeBksDraft(item: UdipCaseDetail, template: BksTemplateKind): string {
@@ -234,6 +272,12 @@ export function CaseWorkspace({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiDraftMeta, setAiDraftMeta] = useState<{
+    usedModel: string | null;
+    referenceFileName: string | null;
+    fallbackUsed: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -263,6 +307,7 @@ export function CaseWorkspace({
   }, [caseUuid]);
 
   const redactedText = useMemo(() => buildRedactedText(draftText, piiSpans), [draftText, piiSpans]);
+  const previewSegments = useMemo(() => buildPreviewSegments(draftText, piiSpans), [draftText, piiSpans]);
   const confirmedCount = piiSpans.filter(s => s.confirmedBlack && !s.isPublicOfficial).length;
   const protectedCount = piiSpans.filter(s => s.isPublicOfficial).length;
 
@@ -337,9 +382,45 @@ export function CaseWorkspace({
       });
       if (res.ok) {
         setClosedSuccess(true);
+        setItem(prev => (prev ? { ...prev, processStatus: "E", answeredDate: dispatchDate } : prev));
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGenerateAiDraft() {
+    if (!item) return;
+    setGeneratingAi(true);
+    try {
+      const res = await fetch(`${API_ROUTES.caseById.replace("{uuid}", item.uuid)}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ templateKind }),
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        status?: string;
+        draft?: string | null;
+        usedModel?: string | null;
+        referenceFileName?: string | null;
+        fallbackUsed?: boolean;
+      };
+      if (json.status === "ok") {
+        if (json.draft) {
+          handleDraftChange(json.draft);
+        } else {
+          handleDraftChange(composeBksDraft(item, templateKind));
+        }
+        setAiDraftMeta({
+          usedModel: json.usedModel ?? null,
+          referenceFileName: json.referenceFileName ?? null,
+          fallbackUsed: Boolean(json.fallbackUsed),
+        });
+      }
+    } finally {
+      setGeneratingAi(false);
     }
   }
 
@@ -579,15 +660,47 @@ export function CaseWorkspace({
                 <FileEarmarkText aria-hidden="true" className="size-4 text-primary" />
                 <span>{polish ? "Projekt pisma BKS UM Bydgoszczy" : "Official BKS UM Bydgoszcz Draft"}</span>
               </div>
-              <Button
-                size="sm"
-                tone="main-outline"
-                onClick={() => handleDraftChange(composeBksDraft(item, templateKind))}
-              >
-                <Magic aria-hidden="true" className="size-3.5" />
-                {polish ? "Złóż ponownie" : "Regenerate"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  tone="primary"
+                  disabled={generatingAi}
+                  onClick={() => void handleGenerateAiDraft()}
+                >
+                  <Magic aria-hidden="true" className="size-3.5" />
+                  {generatingAi
+                    ? polish ? "Generowanie (Gemma 4)…" : "Generating (Gemma 4)…"
+                    : polish ? "Wygeneruj z AI (Gemma 4)" : "Generate with AI (Gemma 4)"}
+                </Button>
+                <Button
+                  size="sm"
+                  tone="main-outline"
+                  onClick={() => handleDraftChange(composeBksDraft(item, templateKind))}
+                >
+                  {polish ? "Szablon BKS" : "BKS Template"}
+                </Button>
+              </div>
             </div>
+
+            {aiDraftMeta && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-primary/6 px-4 py-1.5 text-[11px] text-foreground">
+                <span>
+                  {aiDraftMeta.fallbackUsed
+                    ? polish
+                      ? "Lokalna Ollama (Gemma 4) niedostępna — użyto oficjalnego szablonu BKS."
+                      : "Local Ollama (Gemma 4) unavailable — used official BKS template."
+                    : polish
+                      ? `Wygenerowano lokalnie modelem ${aiDraftMeta.usedModel ?? "gemma4:e4b"}.`
+                      : `Generated locally with ${aiDraftMeta.usedModel ?? "gemma4:e4b"}.`}
+                </span>
+                {aiDraftMeta.referenceFileName && (
+                  <span className="font-mono text-[10px] text-primary">
+                    {polish ? "Wzorzec z data/final_responses/:" : "Reference from data/final_responses/:"}{" "}
+                    {aiDraftMeta.referenceFileName}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* 4 Official BKS Templates */}
             <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-muted/20 px-4 py-2">
@@ -739,15 +852,85 @@ export function CaseWorkspace({
                 {confirmedCount} {polish ? "zaczernień" : "redactions"}
               </span>
             </div>
-            <pre className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3.5 font-mono text-xs leading-relaxed">
-              {redactedText}
-            </pre>
+            <div className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3.5 font-mono text-xs leading-relaxed">
+              {previewSegments.map((seg, idx) => {
+                if (seg.kind === "text") {
+                  return <span key={idx}>{seg.text}</span>;
+                }
+                if (seg.kind === "black") {
+                  return (
+                    <span
+                      key={seg.id}
+                      role="img"
+                      aria-label={polish ? `Zaczerniono: ${seg.category}` : `Redacted: ${seg.category}`}
+                      title={polish ? `Zaczerniono: ${seg.category}` : `Redacted: ${seg.category}`}
+                      style={{ width: `${seg.chars}ch` }}
+                      className="mx-0.5 inline-block h-[1.05em] rounded-[2px] bg-neutral-950 align-middle select-none dark:bg-black"
+                    />
+                  );
+                }
+                if (seg.kind === "grey") {
+                  return (
+                    <span
+                      key={seg.id}
+                      title={polish ? `Wykryte PII (${seg.category}) — kliknij po lewej, aby zaczernić` : `Detected PII (${seg.category})`}
+                      className="rounded-[2px] bg-neutral-300/80 px-0.5 text-neutral-900 dark:bg-neutral-700 dark:text-neutral-100"
+                    >
+                      {seg.text}
+                    </span>
+                  );
+                }
+                return (
+                  <span
+                    key={seg.id}
+                    title={polish ? "Funkcjonariusz publiczny — jawne (Art. 5 ust. 2 UDIP)" : "Public official — kept visible (Art. 5(2) UDIP)"}
+                    className="border-b-2 border-emerald-500/70"
+                  >
+                    {seg.text}
+                  </span>
+                );
+              })}
+            </div>
           </section>
         </div>
       )}
 
-      {/* STEP 3: Zarządzanie — Horizontal Tiles (Approval, Export, Dispatch, Admin Delete) */}
+      {/* STEP 3: Zarządzanie — Horizontal Tiles (or Single Completion Card when Status E) */}
       {step === 3 && (
+        closedSuccess || item.processStatus === "E" ? (
+          <section
+            role="status"
+            className="mx-auto flex w-full max-w-2xl flex-col items-center gap-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/8 px-6 py-10 text-center dark:bg-emerald-950/25"
+          >
+            <span className="flex size-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <CheckCircleFill aria-hidden="true" className="size-8" />
+            </span>
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                {polish
+                  ? `Sprawa ${item.caseNumber} została zakończona (Status E)`
+                  : `Case ${item.caseNumber} has been completed (Status E)`}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {polish
+                  ? `Zarejestrowano datę wysyłki (${(item.answeredDate || dispatchDate).slice(0, 10)}) i zarchiwizowano oczyszczoną odpowiedź w Bazie Wiedzy.`
+                  : `Dispatch date recorded (${(item.answeredDate || dispatchDate).slice(0, 10)}) and scrubbed response archived in the Knowledge Base.`}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <Link
+                href="/kalendarz"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+              >
+                {polish ? "Wróć do Kalendarza Wniosków →" : "Back to Request Calendar →"}
+              </Link>
+              <Button tone="main-outline" onClick={handleDownloadCleanTxt}>
+                <Download aria-hidden="true" className="size-4" />
+                {polish ? "Pobierz czysty .txt" : "Download clean .txt"}
+              </Button>
+            </div>
+          </section>
+        ) : (
         <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center gap-2.5 border-b border-border pb-3">
             <ShieldLockFill aria-hidden="true" className="size-5 shrink-0 text-primary" />
@@ -902,21 +1085,8 @@ export function CaseWorkspace({
               </div>
             )}
           </div>
-
-          {closedSuccess && (
-            <div
-              role="status"
-              className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/12 px-3.5 py-2.5 text-xs font-semibold text-emerald-900 dark:text-emerald-200"
-            >
-              <span>
-                {polish ? `Sprawa ${item.caseNumber} została zakończona (Status E).` : `Case ${item.caseNumber} closed (Status E).`}
-              </span>
-              <Link href="/kalendarz" className="underline">
-                {polish ? "Wróć do Kalendarza →" : "Back to Calendar →"}
-              </Link>
-            </div>
-          )}
         </section>
+        )
       )}
       <DepartmentDocPreviewModal
         doc={previewDoc}

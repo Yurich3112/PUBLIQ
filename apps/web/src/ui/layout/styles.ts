@@ -1,6 +1,6 @@
 export const layoutStyles = {
   navbar: "@container/navbar sticky top-0 z-40 shrink-0 border-b border-navbar-border bg-navbar text-navbar-foreground shadow-navbar",
-  navbarContent: "navbar-main mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1 px-2 @min-[640px]/navbar:flex-nowrap @min-[640px]/navbar:px-6 @min-[768px]/navbar:grid @min-[768px]/navbar:grid-cols-[1fr_auto_1fr] @min-[768px]/navbar:gap-3",
+  navbarContent: "navbar-main flex w-full flex-wrap items-center gap-1 px-2 @min-[640px]/navbar:flex-nowrap @min-[640px]/navbar:px-5 @min-[768px]/navbar:grid @min-[768px]/navbar:grid-cols-[1fr_auto_1fr] @min-[768px]/navbar:gap-3",
   navbarActions: "ml-auto flex w-full shrink-0 items-center justify-end gap-1 @min-[640px]/navbar:w-auto @min-[768px]/navbar:ml-0 @min-[768px]/navbar:justify-self-end @min-[768px]/navbar:gap-2",
   selectors: "flex shrink-0 items-center gap-1.5",
   brand: "inline-flex h-10 min-w-8 shrink-0 items-center justify-center gap-2 justify-self-start rounded-sm text-base font-semibold",

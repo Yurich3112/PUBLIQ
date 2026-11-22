@@ -19,7 +19,7 @@ export async function Footer({ appName, companyName, locale, className }: Footer
       <div className={layoutStyles.footerContent}>
         <div className={layoutStyles.footerIdentity}>
           <SystemStatus />
-          <span className="font-medium">{polish ? "Asystent UDIP · UM Bydgoszcz" : appName}</span>
+          <span className="font-semibold">{polish ? "PUBLIQ · UM Bydgoszcz" : appName}</span>
           <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
           <span className="text-muted-foreground">
             {polish ? "Biuro Komunikacji Społecznej (Zarządzenie nr 535/2024)" : companyName}

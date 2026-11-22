@@ -3,12 +3,11 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
+  ArrowCounterclockwise,
   Building,
   CalendarPlus,
   CheckCircle,
-  ClipboardCheck,
   ExclamationTriangleFill,
-  FileEarmarkPdf,
   LightningChargeFill,
 } from "react-bootstrap-icons";
 import { API_ROUTES } from "@/config/api-routes";
@@ -66,16 +65,26 @@ interface CreatedCaseSummary {
   isMultiDepartment: boolean;
 }
 
+export interface RoutingOverrideState {
+  overrideExternal: boolean;
+  ownDepartment: boolean;
+  selectedDepartments: string[];
+}
+
 export function KnowledgeRecommendationCard({
   verifiedPayload,
   matching,
   matchError,
   matchResult,
+  generatedDraftText,
+  onRoutingStateChange,
 }: {
   verifiedPayload: VerifiedOcrPayload;
   matching: boolean;
   matchError: boolean;
   matchResult: KnowledgeMatchResponse | null;
+  generatedDraftText?: string | null;
+  onRoutingStateChange?: (state: RoutingOverrideState) => void;
 }) {
   const t = useTranslations("ocr");
   const defaultSubject = verifiedPayload.verifiedText.replace(/\s+/g, " ").trim().slice(0, 240);
@@ -84,33 +93,56 @@ export function KnowledgeRecommendationCard({
   const [selectedDepts, setSelectedDepts] = useState<string[]>(
     () => matchResult?.recommendedDepartments ?? [],
   );
-  const [showTemplateText, setShowTemplateText] = useState(false);
-  const [copiedTemplate, setCopiedTemplate] = useState(false);
+  const [overrideExternal, setOverrideExternal] = useState(false);
+  const [ownDepartment, setOwnDepartment] = useState(
+    () =>
+      matchResult?.scenario === "OUR_OFFICE_NEW" &&
+      (matchResult?.recommendedDepartments.length ?? 0) === 0,
+  );
   const [savingCase, setSavingCase] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [createdCase, setCreatedCase] = useState<CreatedCaseSummary | null>(null);
 
-  const internalDepartments =
-    matchResult?.institutionsForLlm.filter(i => i.kind === "INTERNAL_DEPARTMENT") ?? [];
+  const recommendedSet = new Set(matchResult?.recommendedDepartments ?? []);
+  const internalDepartments = [
+    ...(matchResult?.institutionsForLlm.filter(i => i.kind === "INTERNAL_DEPARTMENT") ?? []),
+  ].sort((a, b) => {
+    const ar = recommendedSet.has(a.name) ? 0 : 1;
+    const br = recommendedSet.has(b.name) ? 0 : 1;
+    return ar - br;
+  });
 
   function toggleDepartment(name: string) {
-    setSelectedDepts(prev =>
-      prev.includes(name) ? prev.filter(item => item !== name) : [...prev, name],
-    );
+    setSelectedDepts(prev => {
+      const next = prev.includes(name) ? prev.filter(item => item !== name) : [...prev, name];
+      onRoutingStateChange?.({ overrideExternal, ownDepartment: false, selectedDepartments: next });
+      return next;
+    });
   }
 
-  async function handleCopyTemplate() {
-    if (!matchResult?.referenceTemplate) return;
-    await navigator.clipboard.writeText(matchResult.referenceTemplate.extractedBodyText);
-    setCopiedTemplate(true);
-    setTimeout(() => setCopiedTemplate(false), 2000);
+  function handleToggleOverrideExternal(next: boolean) {
+    setOverrideExternal(next);
+    onRoutingStateChange?.({
+      overrideExternal: next,
+      ownDepartment: next ? ownDepartment : false,
+      selectedDepartments: selectedDepts,
+    });
+  }
+
+  function handleToggleOwnDepartment(next: boolean) {
+    setOwnDepartment(next);
+    onRoutingStateChange?.({
+      overrideExternal,
+      ownDepartment: next,
+      selectedDepartments: next ? [] : selectedDepts,
+    });
   }
 
   async function handleSaveToCalendar() {
     setSavingCase(true);
     setSaveError(false);
     try {
-      const isExternal = matchResult?.scenario === "EXTERNAL_INSTITUTION";
+      const isExternal = matchResult?.scenario === "EXTERNAL_INSTITUTION" && !overrideExternal;
       const routingType = isExternal ? "EXTERNAL_AUTHORITY" : "INTERNAL_DEPARTMENTS";
       const response = await fetch(API_ROUTES.cases, {
         method: "POST",
@@ -127,14 +159,19 @@ export function KnowledgeRecommendationCard({
           matchedCaseNumber: matchResult?.topMatch?.externalKey ?? null,
           matchSimilarity: matchResult?.topMatch?.score ?? null,
           routingType,
-          externalAuthorityName: matchResult?.externalAuthorityHint?.name ?? null,
+          externalAuthorityName: isExternal ? matchResult?.externalAuthorityHint?.name ?? null : null,
           letterTemplateType: isExternal ? "EXTERNAL_REDIRECT" : "MERIT_RESPONSE",
-          draftResponseText: matchResult?.referenceTemplate?.extractedBodyText ?? null,
-          departments: selectedDepts.map(name => ({
-            departmentName: name,
-            departmentEmail:
-              internalDepartments.find(d => d.name === name)?.email ?? null,
-          })),
+          draftResponseText:
+            generatedDraftText ||
+            (isExternal ? matchResult?.referenceTemplate?.extractedBodyText ?? null : null),
+          departments:
+            isExternal || ownDepartment
+              ? []
+              : selectedDepts.map(name => ({
+                  departmentName: name,
+                  departmentEmail:
+                    internalDepartments.find(d => d.name === name)?.email ?? null,
+                })),
         }),
       });
       if (!response.ok) {
@@ -200,125 +237,162 @@ export function KnowledgeRecommendationCard({
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
           {/* Scrollable scenario + vertical departments list */}
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5">
-            {/* 4-Case Scenario Banner */}
-            <div className={`rounded-lg border px-3 py-2 text-xs ${scenarioTone}`}>
-              <p className="font-semibold">
-                {t(`recommendation.scenarios.${matchResult.scenario}.title`)}
-              </p>
-              <p className="mt-0.5 opacity-90">
-                {t(`recommendation.scenarios.${matchResult.scenario}.hint`)}
-              </p>
-            </div>
-
-            {/* Twin Case Match from Baza Wiedzy */}
-            {matchResult.topMatch && (
-              <div className="space-y-1.5 rounded-lg border border-border bg-background p-2.5 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-foreground">
-                    {t("recommendation.twinCase")}:{" "}
-                    <code className="font-mono">{matchResult.topMatch.externalKey}</code>
-                  </span>
-                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
-                    {Math.round(matchResult.topMatch.score * 100)}% {t("recommendation.similarity")}
-                  </span>
-                </div>
-                <p className="text-muted-foreground">{matchResult.topMatch.summary}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {matchResult.topMatch.clusterName} · {matchResult.topMatch.reason}
-                </p>
-              </div>
-            )}
-
-            {/* External Authority Hint (ZUS / ZDMiKP / WKZ — draft only, sent outside app) */}
-            {matchResult.externalAuthorityHint && (
-              <div className="space-y-1 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
-                <div className="flex items-center gap-1.5 font-semibold text-amber-950 dark:text-amber-100">
-                  <ExclamationTriangleFill aria-hidden="true" className="size-3.5 text-amber-600" />
-                  <span>{matchResult.externalAuthorityHint.name}</span>
-                </div>
-                <p className="text-amber-900/90 dark:text-amber-200/90">
-                  {matchResult.externalAuthorityHint.legalBasis}
-                </p>
-              </div>
-            )}
-
-            {/* Archived Reference PDF Template from ResponseTemplateArchive */}
-            {matchResult.referenceTemplate && (
-              <div className="space-y-2 rounded-lg border border-border bg-background p-2.5 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <FileEarmarkPdf aria-hidden="true" className="size-4 text-red-600" />
-                    <span>{matchResult.referenceTemplate.fileName}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      tone="ghost"
-                      onClick={() => setShowTemplateText(v => !v)}
-                    >
-                      {showTemplateText
-                        ? t("recommendation.hideTemplate")
-                        : t("recommendation.previewTemplate")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      tone="main-outline"
-                      onClick={() => void handleCopyTemplate()}
-                    >
-                      <ClipboardCheck aria-hidden="true" className="size-3.5" />
-                      {copiedTemplate
-                        ? t("verified.copied")
-                        : t("recommendation.copyTemplate")}
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-muted-foreground">{matchResult.referenceTemplate.summary}</p>
-                {showTemplateText && (
-                  <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded border border-border bg-muted/30 p-2 font-mono text-[11px]">
-                    {matchResult.referenceTemplate.extractedBodyText}
-                  </pre>
-                )}
-              </div>
-            )}
-
-            {/* Select / Confirm UM Bydgoszcz Departments — crisp vertical list */}
-            {internalDepartments.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Building aria-hidden="true" className="size-3.5 text-muted-foreground" />
-                    <span>{t("recommendation.departmentsLabel")}</span>
-                  </span>
-                  {selectedDepts.length > 0 && (
-                    <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
-                      {selectedDepts.length}
+            {matchResult.scenario === "EXTERNAL_INSTITUTION" && !overrideExternal ? (
+              <>
+                {/* Concise Scenario 3: External authority + AI override */}
+                <div className="space-y-2 rounded-lg border border-amber-500/45 bg-amber-500/10 p-3 text-xs">
+                  <div className="flex items-center gap-1.5 font-semibold text-amber-950 dark:text-amber-100">
+                    <ExclamationTriangleFill aria-hidden="true" className="size-3.5 shrink-0 text-amber-600" />
+                    <span>
+                      {matchResult.externalAuthorityHint?.name ??
+                        "Instytucja zewnętrzna (Art. 4 ust. 3 UDIP)"}
                     </span>
-                  )}
+                  </div>
+                  <p className="text-amber-900/90 dark:text-amber-200/90">
+                    {matchResult.externalAuthorityHint?.legalBasis ??
+                      "Art. 4 ust. 3 UDIP — Urząd Miasta Bydgoszczy nie jest dysponentem danych."}
+                  </p>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  {internalDepartments.map(dept => {
-                    const checked = selectedDepts.includes(dept.name);
-                    return (
-                      <label
-                        key={dept.code}
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                          checked
-                            ? "border-blue-600 bg-blue-500/12 font-medium text-blue-950 dark:text-blue-100"
-                            : "border-border bg-background text-muted-foreground hover:bg-muted/40"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleDepartment(dept.name)}
-                          className="size-3.5 shrink-0 accent-blue-600"
-                        />
-                        <span className="truncate">{dept.name}</span>
-                      </label>
-                    );
-                  })}
+
+                <Button
+                  size="sm"
+                  tone="main-outline"
+                  className="w-full justify-center text-xs"
+                  onClick={() => handleToggleOverrideExternal(true)}
+                >
+                  AI się myli — wybierz wydziały UM Bydgoszcz
+                </Button>
+              </>
+            ) : (
+              <>
+                {matchResult.scenario === "EXTERNAL_INSTITUTION" && overrideExternal ? (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-950 dark:text-blue-100">
+                    <span className="font-semibold">Nadpisano: sprawa wewnętrzna UM Bydgoszcz</span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleOverrideExternal(false)}
+                      className="inline-flex items-center gap-1 font-medium underline hover:opacity-80"
+                    >
+                      <ArrowCounterclockwise aria-hidden="true" className="size-3" />
+                      Cofnij
+                    </button>
+                  </div>
+                ) : (
+                  <div className={`rounded-lg border px-3 py-2 text-xs ${scenarioTone}`}>
+                    <p className="font-semibold">
+                      {t(`recommendation.scenarios.${matchResult.scenario}.title`)}
+                    </p>
+                    <p className="mt-0.5 opacity-90">
+                      {t(`recommendation.scenarios.${matchResult.scenario}.hint`)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Twin Case Match from Baza Wiedzy */}
+                {matchResult.topMatch && !overrideExternal && (
+                  <div className="space-y-1.5 rounded-lg border border-border bg-background p-2.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-foreground">
+                        {t("recommendation.twinCase")}:{" "}
+                        <code className="font-mono">{matchResult.topMatch.externalKey}</code>
+                      </span>
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                        {Math.round(matchResult.topMatch.score * 100)}% {t("recommendation.similarity")}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground">{matchResult.topMatch.summary}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {matchResult.topMatch.clusterName} · {matchResult.topMatch.reason}
+                    </p>
+                  </div>
+                )}
+
+                {/* Internal Mode Switcher: Our BKS Department (Direct Reply) vs Other UMB Departments */}
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-border bg-muted/40 p-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleOwnDepartment(false)}
+                    className={`rounded-md px-2 py-1.5 font-semibold transition ${
+                      !ownDepartment
+                        ? "bg-background text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Inne wydziały UMB
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleOwnDepartment(true)}
+                    className={`rounded-md px-2 py-1.5 font-semibold transition ${
+                      ownDepartment
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Nasz dział (BKS)
+                  </button>
                 </div>
-              </div>
+
+                {ownDepartment ? (
+                  <div className="space-y-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-950 dark:text-emerald-100">
+                    <p className="font-semibold">
+                      Odpowiadamy samodzielnie (Biuro Komunikacji Społecznej)
+                    </p>
+                    <p className="opacity-90">
+                      Nie wysyłamy zapytań do innych wydziałów. Kliknij{" "}
+                      <strong>Wygeneruj odpowiedź</strong> po prawej, aby AI przygotowało projekt na podstawie Bazy Wiedzy, lub zapisz sprawę do Kalendarza.
+                    </p>
+                  </div>
+                ) : (
+                  /* Select / Confirm UM Bydgoszcz Departments — crisp vertical list */
+                  internalDepartments.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Building aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                          <span>{t("recommendation.departmentsLabel")}</span>
+                        </span>
+                        {selectedDepts.length > 0 && (
+                          <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                            {selectedDepts.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        {internalDepartments.map(dept => {
+                          const checked = selectedDepts.includes(dept.name);
+                          const isSuggested = recommendedSet.has(dept.name);
+                          return (
+                            <label
+                              key={dept.code}
+                              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                                checked
+                                  ? "border-blue-600 bg-blue-500/12 font-medium text-blue-950 dark:text-blue-100"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/40"
+                              }`}
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleDepartment(dept.name)}
+                                  className="size-3.5 shrink-0 accent-blue-600"
+                                />
+                                <span className="truncate">{dept.name}</span>
+                              </span>
+                              {isSuggested && (
+                                <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                  Sugerowany
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                )}
+              </>
             )}
           </div>
 

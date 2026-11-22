@@ -37,7 +37,7 @@ export async function Navbar({ appName, locale, languageCookieName, cookieDomain
         <Link href="/" locale={locale} aria-label={appName} className={layoutStyles.brand}>
           <Image src="/brand-icon.png" alt="" width={36} height={36} className="size-9 shrink-0 object-contain" />
           <span className="navbar-brand-name hidden flex-col leading-tight @min-[1024px]/navbar:inline-flex">
-            <span className="text-sm font-semibold tracking-tight text-foreground">Asystent UDIP</span>
+            <span className="text-sm font-bold tracking-tight text-foreground">PUBLIQ</span>
             <span className="text-[10px] font-medium text-muted-foreground">UM Bydgoszcz · BKS</span>
           </span>
         </Link>

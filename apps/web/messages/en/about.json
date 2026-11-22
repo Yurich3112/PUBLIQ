@@ -61,15 +61,15 @@
     "teamLink": "Meet the team",
     "homeLink": "Home",
     "team": {
-      "metadataTitle": "Team | Modulon",
-      "eyebrow": "People behind the project",
-      "title": "Development team",
-      "description": "The people building and developing Modulon.",
+      "metadataTitle": "Team FeatureFromFuture | PUBLIQ",
+      "eyebrow": "FeatureFromFuture · HackNation 2026",
+      "title": "Project Team",
+      "description": "The people building PUBLIQ — the UDIP Assistant for the City Hall of Bydgoszcz.",
       "owner": "Project owner",
       "architect": "Architect",
       "projectLead": "Project lead",
       "kacper": {
-        "bio": "Responsible for Modulon's architecture, development direction and technical consistency.",
+        "bio": "Responsible for architecture, development direction and technical consistency.",
         "motto": "Simple solutions. Solid foundations."
       },
       "namePlaceholder": "Full name",
@@ -78,7 +78,7 @@
       "photoPlaceholder": "Photo placeholder",
       "profileLabel": "{provider}: {name} — opens a new tab",
       "profilePlaceholder": "{provider}: link to be added",
-      "aboutLink": "About the project"
+      "aboutLink": "About the system"
     },
     "intro": "The project brings together elements that recur across many systems: users, permissions, documents, data and background operations. A shared core lets new features grow without rebuilding those foundations.",
     "contentsLabel": "On this page",

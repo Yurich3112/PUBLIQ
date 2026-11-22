@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps<"/[locale]/about">)
   const { locale } = await params;
   const polish = locale === "pl";
   return {
-    title: polish ? "O systemie — Asystent UDIP · UM Bydgoszcz" : "About — UDIP Assistant · UM Bydgoszcz",
+    title: polish ? "O systemie — PUBLIQ · UM Bydgoszcz" : "About — PUBLIQ · UM Bydgoszcz",
     description: polish
       ? "Inteligentny Asystent Urzędnika do obsługi wniosków o informację publiczną (UDIP) dla Biura Komunikacji Społecznej Urzędu Miasta Bydgoszczy."
       : "Intelligent Clerk Assistant for public information requests (UDIP) built for the City Hall of Bydgoszcz.",
@@ -99,7 +99,7 @@ export default async function AboutPage({ params }: PageProps<"/[locale]/about">
             <span>HackNation 2026 · Urząd Miasta Bydgoszczy (BKS)</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            {polish ? "Inteligentny Asystent Urzędnika (UDIP)" : "Intelligent Clerk Assistant (UDIP)"}
+            {polish ? "PUBLIQ — Inteligentny Asystent Urzędnika (UDIP)" : "PUBLIQ — Intelligent Clerk Assistant (UDIP)"}
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
             {polish

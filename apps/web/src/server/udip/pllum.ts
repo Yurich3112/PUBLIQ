@@ -27,7 +27,15 @@ async function complete<T extends z.ZodType>(instruction: string, data: unknown,
   if (!base || !Number.isInteger(timeout) || timeout < 500 || timeout > 120_000) return null;
   const primaryModel = process.env.UDIP_PLLUM_MODEL ?? process.env.UDIP_LLM_MODEL ?? "gemma4:e4b";
   const fallbackModel = process.env.UDIP_LLM_FALLBACK_MODEL ?? "gemma4:e2b";
-  const candidates = primaryModel === fallbackModel ? [primaryModel] : [primaryModel, fallbackModel];
+  let installed: string[] = [];
+  try {
+    const res = await fetch(new URL("/api/tags", base), { signal: AbortSignal.timeout(2000) });
+    if (res.ok) {
+      const json = (await res.json()) as { models?: { name?: string }[] };
+      installed = (json.models ?? []).map(m => m.name?.trim()).filter((n): n is string => Boolean(n));
+    }
+  } catch { /* ignore tag discovery errors */ }
+  const candidates = [...new Set([primaryModel, fallbackModel, ...installed.filter(m => m.toLowerCase().includes("gemma"))])];
   for (const model of candidates) {
     const result = await postLocalModel(new URL("/v1/chat/completions", base), {
       model, temperature: 0, stream: false, max_tokens: 2600,

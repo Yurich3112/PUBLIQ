@@ -536,10 +536,6 @@ export function runKnowledgeGraphMatch(
   const isTwinMatch = Boolean(topMatch && topMatch.score >= KB_TWIN_MATCH_THRESHOLD);
   const externalAuthorityHint = detectExternalAuthorityHint(`${input.title ?? ''} ${input.summary}`);
 
-  const recommendedDepartments = isTwinMatch && topMatch
-    ? topMatch.structuredJson.routed_to
-    : [];
-
   const departmentsRegistry: KbRegistryItem[] = nodes
     .filter(n => n.nodeType === KbNodeType.DEPARTMENT)
     .map(n => ({ externalKey: n.externalKey, name: n.title, summary: n.summary, tags: n.tags }));
@@ -551,6 +547,32 @@ export function runKnowledgeGraphMatch(
   const isExternalAuthority = Boolean(
     externalAuthorityHint || (isTwinMatch && topMatch?.structuredJson.is_external_authority),
   );
+
+  // Suggest top 1-2 relevant departments even for brand-new topics (not just twin-case matches).
+  let recommendedDepartments: string[] = isTwinMatch && topMatch
+    ? topMatch.structuredJson.routed_to
+    : [];
+
+  if (recommendedDepartments.length === 0 && !isExternalAuthority) {
+    const deptIdf = buildIdfMap([
+      { title: input.title ?? '', summary: input.summary, tags: queryTags },
+      ...departmentsRegistry.map(d => ({ title: d.name, summary: d.summary, tags: d.tags })),
+    ]);
+    const scoredDepts = departmentsRegistry
+      .map(dept => ({
+        name: dept.name,
+        score: scoreKnowledgeSimilarity(
+          { title: input.title, summary: input.summary, tags: queryTags },
+          { title: dept.name, summary: dept.summary, tags: dept.tags },
+          deptIdf,
+        ).score,
+      }))
+      .filter(d => d.score >= 0.14)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
+    recommendedDepartments = scoredDepts.map(d => d.name);
+  }
+
   const scenario = classifyRoutingScenario({
     isTwinMatch,
     isExternalAuthority,

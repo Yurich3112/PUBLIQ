@@ -4,6 +4,7 @@ import { getAccess } from "@/server/auth/access";
 import { getAuthConfig } from "@/server/auth/config";
 import { jsonNoStore } from "@/server/http";
 import { deleteUdipCaseById, loadUdipCaseById, patchUdipCase } from "@/server/udip-cases";
+import { saveFinalizedResponseTxt } from "@/server/udip/final-responses-store";
 
 export async function GET(
   _request: Request,
@@ -50,6 +51,9 @@ export async function PATCH(
   try {
     const updated = await patchUdipCase(uuid, parsed.data, access.context.actorUuid);
     if (!updated) return jsonNoStore({ status: "notFound" }, 404);
+    if (parsed.data.processStatus === "E" && parsed.data.anonymizedResponseText) {
+      await saveFinalizedResponseTxt(updated.caseNumber, parsed.data.anonymizedResponseText);
+    }
     return jsonNoStore({ status: "ok", case: updated });
   } catch {
     return jsonNoStore({ status: "failed" }, 503);

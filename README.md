@@ -1,288 +1,196 @@
-# Modulon PoC
+# PUBLIQ — Asystent UDIP (Urząd Miasta Bydgoszczy)
 
-A minimal reusable foundation for authenticated business applications. One
-Next.js application contains the UI and backend; Nginx, PostgreSQL, Keycloak
-and SeaweedFS supply the shared infrastructure.
+> **HackNation 2026** · Wyzwanie: *Inteligentny asystent urzędnika — Generator odpowiedzi na UDIP z kalendarzem (organizerem) wniosków*  
+> **Odbiorca:** Biuro Komunikacji Społecznej (BKS) Urzędu Miasta Bydgoszczy (*Administrator Informacji Publicznej — Zarządzenie nr 535/2024 Prezydenta Miasta Bydgoszczy*)  
+> **Zespół:** **FeatureFromFuture** (Kacper Boś, Jakub Mielcarek, Natalia Balicka, Yurii Holovko, Stanisław Wałga)
 
-**Status: working DEV/QA PoC with authenticated administration.**
-Implemented: PL/EN Web, Prisma 7.10.1, Better Auth/Keycloak login, product/file/tag
-administration, monitoring and durable Node/Python task execution. Terraform and
-automatic business lifecycle processing remain pending.
-DEV has four core infrastructure containers plus the S3 console, with setup inside
-their owning containers; see the [Docker workflow](docs/0302-local-docker.md). DEV dependency containers are running in
-the isolated `modulonpocdev` project; Web remains a separate host process.
-The business backend remains in Next.js. Separate host Node and Python processes
-now provide durable task execution without adding infrastructure containers.
+**PUBLIQ** to przeglądarkowa (bez instalacji `.exe`) aplikacja intranetowa, która skraca obsługę wniosków o udostępnienie informacji publicznej (UDIP) z wielu dni do kilku minut — przy zachowaniu **100% lokalnego działania offline (air-gapped)** na otwartowagowych modelach **Gemma 4 (Apache 2.0)**.
 
-## Selected PoC stack
+---
 
-| Layer | Selection |
-| --- | --- |
-| PROXY | Nginx Open Source |
-| DB | PostgreSQL **18.6**, with separate `app_db`, `keycloak_db` and `queue_db` |
-| WEB | Next.js UI and backend, React, Tailwind CSS, Bootstrap icons through `react-bootstrap-icons`, PL/EN i18n and Better Auth |
-| Database package | **`packages/database`**, Prisma **7.10.1** for the application schema only |
-| S3 | SeaweedFS open-source edition, one container including bootstrap |
-| AUTH | Keycloak with custom login/account themes, an application realm and restricted API access from Next.js |
-| Queue | pg-boss in a separate PostgreSQL database, consumed by a host Node.js worker |
-| Python executor | FastAPI/Uvicorn, app-local virtualenv, authenticated diagnostics and health endpoints |
+## Co potrafi PUBLIQ?
 
-Better Auth owns application sessions in PostgreSQL; Keycloak owns credentials,
-profiles and realm roles. The Next.js backend reads permitted identity data
-through Keycloak's API and enforces the permissions behind visible UI elements.
-Secrets and provider tokens remain server-side.
+1. **Kokpit Urzędnika (`/`) i Kalendarz Wniosków (`/kalendarz`)**
+   - Rejestr ~800 spraw rocznie z oficjalną sygnaturą **`BKS.IV.1431.<nr>.<rok>`**, sortowany od najpilniejszych (`Po terminie / Dziś` → `Czeka na wydziały` → `Komplet odpowiedzi` → `Zakończone`).
+   - Rozwijane wiersze z niezależnym śledzeniem odpowiedzi poszczególnych wydziałów UM Bydgoszczy (`X/Y odp.`), załączaniem plików PDF/DOCX, podglądem PDF w oknie aplikacji oraz szybką kwerendą (Art. 13 ust. 2 UDIP) i wezwaniem do doprecyzowania (7 dni).
+   - Startuje z **10 wzorcowymi sprawami UM Bydgoszczy (5 Zielonych / 5 Czerwonych)**.
+2. **Obsługa wniosków PDF i Word (`.docx`) + Weryfikator OCR 1:1 (`/ocr`)**
+   - **Pliki Word (`.docx`)**: natychmiastowa ekstrakcja czystego tekstu z `word/document.xml` (bez obrazków i zbędnego formatowania) i bezpośrednie przejście do 3-kolumnowego ekranu rutowania i generowania odpowiedzi.
+   - **Skany PDF i pismo ręczne**: usuwanie kratki zeszytowej (OpenCV), podgląd 1:1 skanu z ramkami słów obok edytowalnej transkrypcji, czerwone oznaczenia słów do weryfikacji, cofanie `Ctrl+Z`, usuwanie artefaktów oraz 1-klikowe *Wezwanie do doprecyzowania (7 dni)* dla nieczytelnych skanów.
+3. **Baza Wiedzy, 4 scenariusze UDIP i archiwum finalnych odpowiedzi (`data/final_responses/`)**
+   - Natychmiastowe dopasowanie spraw bliźniaczych z 2025/2026 r., automatyczna pre-selekcja top 1–2 wydziałów UM Bydgoszczy, obsługa trybu **`Nasz dział (BKS)`** (odpowiadamy sami bez wysyłania zapytań) oraz przekierowania do podmiotów zewnętrznych (Art. 4 ust. 3 UDIP — ZUS, ZDMiKP, WKZ) z przyciskiem **`AI się myli`** do nadpisania decyzji modelu.
+   - Katalog **`data/final_responses/`** przechowuje zanonimizowane odpowiedzi finalne cytowane przez rekordy JSON i przekazywane do Gemma 4 jako wzorzec stylu i podstaw prawnych.
+4. **3-etapowa obsługa sprawy (`/sprawy/[uuid]`): `1. Projekt pisma` → `2. Redakcja` → `3. Zarządzanie`**
+   - **1. Projekt pisma**: 4 oficjalne szablony BKS + generowanie projektu odpowiedzi lokalnym modelem **Gemma 4** z cytowaniem wcześniejszej odpowiedzi z `data/final_responses/`.
+   - **2. Redakcja (Anonimizator PII)**: wykrywanie 28 kategorii PII z **czarnymi paskami zaczernień (black boxes)** i ochroną funkcjonariuszy publicznych (Art. 5 ust. 2 UDIP — np. nazwisko Prezydenta pozostaje jawne).
+   - **3. Zarządzanie**: poziome kafelki — akceptacja przełożonego, eksport czystego `.txt` (bez możliwości cofnięcia `Ctrl+Z`), rejestracja daty wysyłki (`Status E`, automatyczna archiwizacja w `data/final_responses/`) oraz (dla Administratora) trwałe usuwanie wniosku.
+5. **Panel Administratora i Graf Bazy Wiedzy (`/admin/knowledge`)**
+   - Ścisła separacja ról przez Keycloak (`Urzędnik` vs `Administrator`). Tylko Administrator widzi pełny graf klastrów tematycznych i może dodawać nowe akty prawne lub archiwalne sprawy.
 
-The queue supports retries and administrator lifecycle actions. Node owns queue
-claiming, versioned scheduler configuration and service monitoring; Python handles
-bounded authenticated diagnostic requests. Optional Python connection helpers
-provide a Node-owned queue producer/status bridge and explicit PostgreSQL access;
-both require private configuration and are disabled by default. Python does not
-claim jobs or modify pg-boss tables. QA runs Web and both workers in release
-containers; STT/model execution and PROD deployment remain separate work. See the [queue recipe](docs/0311-postgresql-queue.md)
-and [Python worker structure](docs/0314-python-worker.md).
+---
 
-## DEV, QA and PROD
+## Lokalny stos AI (100% Air-Gapped · Apache 2.0)
 
-Retain the environment model from the sibling `modulon` repository:
+| Zadanie | Model / Narzędzie | Zasoby | Licencja |
+| :--- | :--- | :--- | :--- |
+| **OCR pisma ręcznego, streszczenia JSON, projekty pism** | **`Gemma 4 E4B`** (`gemma4:e4b` przez Ollama) | ~3–5 GB (GPU / CPU) | Apache 2.0 |
+| **Lekki tryb awaryjny (stacje CPU)** | **`Gemma 4 E2B`** (`gemma4:e2b` przez Ollama) | ~1.5–2.5 GB RAM (CPU) | Apache 2.0 |
+| **Usuwanie kratki, ramki słów 1:1 i detekcja PII** | OpenCV + RapidOCR (ONNX) + `PII-Tracer` + Reguły BKS | ~1.2 GB RAM (CPU) | Open-Source |
 
-| Environment | Runtime |
-| --- | --- |
-| DEV | Next.js on the developer host; infrastructure in local Docker Compose |
-| QA | Complete local Compose stack, including a release Web/backend image |
-| PROD | Verified release images in Compose on AWS Lightsail; Terraform provisions infrastructure |
+> **Tryb awaryjny bez GPU / bez Ollamy:** Jeśli Ollama nie jest uruchomiona, aplikacja działa w 100% stabilnie — dostępne są szablony BKS, ekstrakcja Word/PDF, dopasowanie w Bazie Wiedzy i anonimizacja PII.
 
-Environments have independent credentials, data, cookies and configuration.
-DEV and QA use standard ports and run alternately by default, as in `modulon`.
-They share browser URLs (`https://modulon.local` and the same auth/S3 aliases);
-QA runs built release containers while DEV runs app processes on the host.
-Switch with `pnpm dev:stop && pnpm qa:up`; return with `pnpm qa:stop && pnpm dev`.
-To remove QA containers while retaining data, use `pnpm stack:down --mode qa && pnpm dev`;
-see [switching environments](docs/0316-qa-containers.md#return-from-qa-to-dev).
-Concurrent stacks require explicit port/hostname overrides. No sibling data,
-credentials or partially implemented auth code is imported by this decision.
+---
 
-DEV configuration belongs to `apps/web/.env`, `apps/pyworker/.env`, `packages/database/.env` and
-`infra/local/.env.dev`. QA uses `infra/local/.env.qa`; PROD receives controlled
-deployment configuration and secrets. Commit safe examples only. Preserve the
-same verified release image from QA to PROD through runtime configuration.
+## Instalacja krok po kroku (dla każdego — od zera w 5 minut)
 
-## Root workspace commands
+### Krok 0: Zainstaluj 5 darmowych programów (jeśli jeszcze ich nie masz)
 
-```powershell
+| Program | Wersja | Skąd pobrać |
+| :--- | :--- | :--- |
+| **Git** | najnowsza | https://git-scm.com/downloads |
+| **Node.js** | **24.x** (LTS) | https://nodejs.org |
+| **pnpm** | **12.x** | W terminalu: `corepack enable && corepack prepare pnpm@12.15.0 --activate` |
+| **Python** | **3.12 – 3.14** | https://www.python.org/downloads/ *(na Windows zaznacz „Add Python to PATH”)* |
+| **Docker Desktop** | najnowsza | https://www.docker.com/products/docker-desktop/ *(uruchom go przed startem!)* |
+| **mkcert** *(lokalne HTTPS)* | najnowsza | Windows: `winget install FiloSottile.mkcert` · macOS: `brew install mkcert` |
+
+---
+
+### Krok 1: Pobierz kod i zainstaluj pakiety
+
+Otwórz terminal (PowerShell na Windows lub Terminal na macOS/Linux):
+
+```bash
+git clone https://github.com/Yurich3112/asystent_hacknation2026_FFF.git
+cd asystent_hacknation2026_FFF
+pnpm install --frozen-lockfile
+```
+
+---
+
+### Krok 2: Dodaj lokalny adres `modulon.local` do pliku `hosts`
+
+Dzięki temu aplikacja i logowanie Keycloak będą działały pod bezpiecznym adresem `https://modulon.local`.
+
+- **Windows** — uruchom PowerShell **jako Administrator** i wklej:
+  ```powershell
+  Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 modulon.local auth.modulon.local s3.modulon.local s3console.modulon.local"
+  ```
+- **macOS / Linux** — uruchom w terminalu:
+  ```bash
+  echo "127.0.0.1 modulon.local auth.modulon.local s3.modulon.local s3console.modulon.local" | sudo tee -a /etc/hosts
+  ```
+
+---
+
+### Krok 3: Wygeneruj zaufany certyfikat HTTPS (`mkcert`)
+
+W głównym katalogu projektu uruchom:
+
+```bash
+mkcert -install
+mkdir -p infra/local/certs
+mkcert -cert-file infra/local/certs/modulon.local.crt -key-file infra/local/certs/modulon.local.key modulon.local "*.modulon.local" localhost 127.0.0.1
+```
+
+Skopiuj certyfikat CA do `infra/local/certs/rootCA.pem`:
+- **Windows (PowerShell):**
+  ```powershell
+  Copy-Item "$(mkcert -CAROOT)\rootCA.pem" "infra\local\certs\rootCA.pem"
+  ```
+- **macOS / Linux:**
+  ```bash
+  cp "$(mkcert -CAROOT)/rootCA.pem" infra/local/certs/rootCA.pem
+  ```
+
+---
+
+### Krok 4: Automatycznie utwórz pliki konfiguracyjne `.env`
+
+Jedna komenda wygeneruje wszystkie wymagane pliki `.env` (`apps/web/.env`, `apps/pyworker/.env`, `packages/database/.env`, `infra/local/.env.dev`) z losowymi hasłami:
+
+```bash
+pnpm stack:init
+pnpm validate:dev
+pnpm validate:certs
+```
+
+Wszystkie 3 komendy powinny zakończyć się statusem `[ok]`.
+
+---
+
+### Krok 5: (Opcjonalnie) Uruchom lokalny model AI **Gemma 4** w Ollamie
+
+Jeśli chcesz testować generowanie odpowiedzi i OCR pisma ręcznego przez lokalny model Gemma 4:
+
+```bash
+docker run -d --name modulon-ollama -p 11434:11434 -v ollama:/root/.ollama ollama/ollama
+docker exec -it modulon-ollama ollama pull gemma4:e4b
+# (opcjonalnie na słabszy komputer bez GPU):
+docker exec -it modulon-ollama ollama pull gemma4:e2b
+```
+
+---
+
+### Krok 6: Uruchom całą aplikację jedną komendą!
+
+Upewnij się, że **Docker Desktop jest uruchomiony**, a następnie wpisz:
+
+```bash
 pnpm dev
-pnpm check
-pnpm build
-pnpm start
 ```
 
-Configure the private env files and TLS first. Install Docker Engine and Python
-3.12–3.14. Startup reuses the virtualenv's base Python or probes installed supported
-interpreters; `PYWORKER_PYTHON` overrides that selection. Startup installs the versions in the lockfiles; it never upgrades
-dependencies or generates a replacement auth secret.
+Skrypt automatycznie:
+1. Zbuduje i uruchomi kontenery PostgreSQL 18, Keycloak (z motywem **PUBLIQ**), SeaweedFS (S3) i Nginx.
+2. Przygotuje środowisko Python (`.venv`) dla `pyworker` (OCR + PII).
+3. Wykona migracje bazy danych i zasieje **10 przykładowych spraw UM Bydgoszczy** oraz Bazę Wiedzy.
+4. Uruchomi aplikację webową Next.js + worker Pythona + kolejkę `pg-boss`.
 
-| Command | Effect |
-| --- | --- |
-| `pnpm dev` | Check tools/Engine/config/TLS, synchronize frozen dependencies, prepare Python, build/start Compose with cache, wait for health, then prepare Prisma/queue and start all host services |
-| `pnpm dev:start:cold` / `pnpm dev:start:warm` | Compatibility aliases of `pnpm dev`; one automatic workflow handles both fresh and prepared dependencies/images |
-| `pnpm dev:stop` | Stop the supervised host process tree, then take down DEV Compose without deleting volumes |
-| `pnpm dev:restart` | Stop supervised services and repeat automatic startup, restarting DEV containers while preserving dependencies, virtualenv, outputs and data |
-| `pnpm dev:clean` | Same generated files/dependencies as `pnpm clean`, with an added stopped-service guard; preserve the Python virtualenv |
-| `pnpm dev:doctor` | Read-only diagnosis of env/auth, TLS, Docker, service health, database schemas and ports; suggests repairs without executing them |
-| `pnpm dev:rebuild` | Stop supervised services, validate auth, take down DEV containers, clean dependencies/outputs and recreate Python, then perform a complete cold start |
+Gdy zobaczysz w logach gotowość serwerów, otwórz w przeglądarce:
 
-Preparation checks env/auth/TLS, Docker health and host ports, builds shared
-packages, prepares pg-boss in the existing local queue database, applies committed Prisma migrations to the verified local target and
-seeds only missing defaults. Web, Python and queue then run concurrently with
-path-prefixed logs. Prisma Studio stays separate: `pnpm db:studio` (5555).
-Ctrl+C stops the supervised host processes and keeps Docker running.
+👉 **https://modulon.local**
 
-### Rebuild one component
+---
 
-Stop host services first (`pnpm dev:stop`, or Ctrl+C in their original terminals).
-These commands prepare one component and return; they do not start host services
-or apply migrations. Other component outputs are preserved, except that Web also
-builds the shared packages it needs. JS component rebuilds synchronize the shared
-pnpm installation first; Python and Docker rebuilds operate independently.
+## Szybki scenariusz testowy dla Jury (2 minuty)
 
-| Command | Effect |
-| --- | --- |
-| `pnpm dev:rebuild:web` | Clear Web outputs/cache, rebuild shared packages and check Web types/lint; production build remains `pnpm build:web` |
-| `pnpm dev:rebuild:pyworker` | Recreate `.venv` and Python caches from the hash-locked requirements; retain the previous base interpreter unless overridden |
-| `pnpm dev:rebuild:prisma` | Clear database package outputs, regenerate Prisma Client and compile the package; preserve schema, migrations and database contents |
-| `pnpm dev:rebuild:queue` | Clear queue outputs and recompile the Node queue package |
-| `pnpm dev:rebuild:monitoring` | Clear monitoring outputs, build Prisma and recompile monitoring |
-| `pnpm dev:rebuild:docker` | Take down and rebuild/start DEV Compose, waiting for container health; preserve data volumes |
+Przykładowe wnioski z UM Bydgoszczy znajdują się w katalogu `docs/Przykładowe wnioski i odpowiedzi -20261121T114640Z-1-001/Przykładowe wnioski i odpowiedzi/`:
 
-Dotted aliases are also available: `pnpm dev.rebuild.web`,
-`pnpm dev.rebuild.pyworker`, `pnpm dev.rebuild.prisma`, `pnpm dev.rebuild.queue`,
-`pnpm dev.rebuild.monitoring` and `pnpm dev.rebuild.docker`.
-Then run `pnpm dev` for everything, or `pnpm dev:prepare` followed by individual
-service commands below. The global rebuild covers all host components and Docker.
+1. **Zaloguj się** przyciskiem w prawym górnym rogu (możesz zarejestrować własne konto przez ekran logowania PUBLIQ / Keycloak lub zalogować się kontem Administratora).
+2. **Kalendarz Wniosków (`/kalendarz`)**: kliknij dowolny wiersz (np. `BKS.IV.1431.590.2026`), rozwiń statusy wydziałów i kliknij **`Podgląd dokumentu`**, aby otworzyć PDF odpowiedzi wydziału.
+3. **Nowy wniosek z pliku Word (`.docx`) (`/ocr`)**: wgraj `Wniosek - BKS.IV.1431.15.2026.docx` (rzeźba Stehnovej → automatycznie wykrywa **Scenariusz 3: WKZ**; kliknij **`AI się myli`**, zaznacz wydziały lub wybierz **`Nasz dział (BKS)`**, kliknij **`Wygeneruj odpowiedź`** i **`Zapisz sprawę w Kalendarzu`**).
+4. **OCR pisma odręcznego (`/ocr`)**: wgraj `Wniosek - BKS.IV.1431.16.2026.pdf` (kartka w kratkę — usuwanie kratki + porównanie 1:1 + klikanie słów do edycji).
+5. **Generator pism + Czarne paski PII (`/sprawy/[uuid]`)**: otwórz sprawę `BKS.IV.1431.599.2026`, kliknij **`Wygeneruj z AI (Gemma 4)`**, przejdź do **`2. Redakcja`** (zobaczysz czarne paski zaczernień na danych osobowych i numerze PESEL), a następnie w **`3. Zarządzanie`** zatwierdź wersję, pobierz czysty `.txt` i zamknij sprawę (`Status E`).
 
-Cleanup never removes `.env`, lockfiles, certificates, database/storage data or
-Docker volumes. The explicit destructive infrastructure commands below are the exception.
-Lifecycle commands stop only descendants of their own supervised
-DEV session. Services launched separately or by an older `pnpm dev` must be stopped
-in their original terminals; occupied ports block cleanup/startup.
-`pnpm check:dev-auth` reports invalid auth fields without their values; for example,
-`AUTH_SECRET` must contain at least 32 characters. Changes remain manual.
+---
 
-Every preparation phase is also available separately; see [DEV startup](docs/0315-dev-startup.md).
-For certificate generation and CA import on Windows, Linux and macOS, see
-[Local HTTPS and CA trust](docs/0318-local-tls.md).
-Docker can be operated independently with `pnpm dev:infra:up`,
-`pnpm dev:infra:up --no-build`, `pnpm dev:infra:down`, `pnpm dev:infra:status`
-and `pnpm dev:infra:logs`. `down` preserves data. Existing DEV `stack:*` lifecycle
-commands delegate to this same implementation.
-Start, stop and delete stream Docker Compose output directly to the terminal.
-During longer operations, a message every 15 seconds shows the elapsed time;
-startup waits up to 240 seconds for container health.
+## Przydatne komendy i rozwiązywanie problemów
 
-The project stays `modulonpocdev`; containers are `dev-proxy-0`, `dev-db-0`,
-`dev-auth-0`, `dev-s3-0` and `dev-s3console-0`. QA uses `qa-*`, including Web
-and workers; DEV applications still run on the host. Images retain technology
-and version names. Scripts address Compose roles, not constructed container names.
-`INSTANCE_INDEX` changes only container names, which must be unique on the host.
-`DB_VOLUME_NAME`, `S3_VOLUME_NAME` and `S3CONSOLE_VOLUME_NAME` independently preserve
-the original data volumes, including their legacy PostgreSQL/SeaweedFS suffixes.
+| Komenda | Co robi |
+| :--- | :--- |
+| `pnpm dev` | Uruchamia cały projekt w trybie DEV |
+| `pnpm dev:stop` | Zatrzymuje aplikację i kontenery Docker (zachowuje dane w bazie) |
+| `pnpm dev:rebuild:docker` | Przebudowuje obrazy Dockera (np. po zmianie motywu logowania Keycloak) |
+| `pnpm dev:doctor` | Diagnozuje porty, certyfikaty, `.env`, bazę danych i kontenery |
+| `pnpm --filter ./apps/web run lint` | Sprawdza jakość kodu ESLint |
+| `pnpm --filter ./apps/web run test` | Uruchamia 192 testy automatyczne aplikacji webowej |
 
-### Reset DEV infrastructure and permanently delete its data
+---
 
-```powershell
-pnpm dev:infra:delete
-pnpm dev:infra:up
+## Struktura repozytorium
+
+```text
+asystent_hacknation2026_FFF/
+├── apps/
+│   ├── web/                  # Next.js (App Router), UI PUBLIQ, API, Baza Wiedzy, Gemma 4
+│   └── pyworker/             # FastAPI + Uvicorn (Port 8010) — OpenCV, RapidOCR, PII-Tracer
+├── packages/
+│   ├── database/             # Prisma 7 + PostgreSQL (sprawy UDIP, graf Bazy Wiedzy, szablony)
+│   ├── queue/                # pg-boss (zadania w tle)
+│   └── monitoring/           # Monitoring dostępności usług
+├── data/
+│   └── final_responses/      # Zanonimizowane odpowiedzi finalne cytowane przez Bazę Wiedzy i Gemma 4
+├── infra/local/              # Docker Compose (Postgres, Keycloak z motywem PUBLIQ, SeaweedFS, Nginx)
+├── docs/                     # Specyfikacja UDIP_COMPLETE_IDEA.md, akty prawne i przykładowe wnioski
+└── tests/                    # Testy automatyczne (web + pyworker)
 ```
-
-`dev:infra:delate` remains a compatibility alias of `dev:infra:delete`.
-**Deletion permanently removes DEV containers and all three owned data volumes:**
-PostgreSQL (application, Keycloak and queue databases), SeaweedFS files and S3
-console state. It verifies Compose project/volume ownership and refuses volumes
-used by other projects. QA/PROD, env files, certificates and host processes are
-preserved. No global Docker prune is used.
-
-`dev:infra:up` builds/starts all five DEV infrastructure containers, including
-the S3 console, and waits for health. Fresh volumes bootstrap using the current
-private infrastructure env. It does not delete existing volumes, rotate secrets,
-start Web/workers or run Prisma migrations/seeds. After a reset, prepare the
-application and queue schemas with `pnpm dev:prepare`, or start the complete DEV flow with
-`pnpm dev` after resolving any invalid/mismatched Web configuration.
-QA uses `pnpm qa:build`, `pnpm qa:deploy`, `pnpm qa:start` as separate stages;
-`pnpm qa:up` initializes/checks configuration and runs them in order.
-Build targets also have individual `qa:build:<service>` aliases and run concurrently
-under `qa:build`. Occupied ports block startup without stopping DEV.
-QA configuration uses one `infra/local/.env.qa.example` template and one private
-`.env.qa`, with explicit per-service variables and multi-stage Web/Python images.
-See [QA containers](docs/0316-qa-containers.md).
-The S3 operator UI starts with `pnpm dev`; it can also be managed separately with
-`pnpm s3console:up`. Open
-`https://s3console.modulon.local/login`. Login settings are in `STORAGE / CONSOLE`. Use `--mode qa` for QA; see
-[S3 console](docs/0317-s3-console.md) for permissions and lifecycle commands.
-The DEV project is isolated as `modulonpocdev`; preserve its own credentials and
-volumes. For initial queue/Python setup:
-
-```powershell
-pnpm queue:setup
-pnpm pyworker:setup
-```
-
-For individually started services after `pnpm dev:prepare`, use separate terminals:
-
-```powershell
-pnpm dev:web
-pnpm dev:pyworker
-```
-
-```powershell
-pnpm dev:queue
-pnpm db:studio
-```
-
-Python DEV reloads only source `.py` changes, excluding caches and its virtualenv.
-Its readiness endpoint is `http://127.0.0.1:8010/health/ready` (`/health` is an alias).
-`pnpm check` includes Python unit tests and Ruff; those checks require the prepared
-virtualenv and never install dependencies or update private environment files.
-See [all workspace commands](docs/0205-workspace-commands.md).
-
-## Local Gemma 4 AI stack (Apache 2.0 via Ollama)
-
-All local multimodal OCR, JSON request summarization, Knowledge Base tagging, and
-official BKS letter drafting run offline on the **Gemma 4** family (**Apache 2.0**
-open-source license) via local **Ollama** (`http://127.0.0.1:11434`):
-
-- **Primary model:** `gemma4:e4b` (multimodal vision + text for OCR, JSON summaries, and letter drafts)
-- **Lightweight CPU fallback:** `gemma4:e2b` (same Gemma 4 family, sized for CPU-only workstations)
-
-Pull the models once before running offline:
-
-```powershell
-ollama pull gemma4:e4b
-ollama pull gemma4:e2b
-```
-
-In `apps/pyworker/.env`, set `PYWORKER_OLLAMA_URL=http://127.0.0.1:11434`,
-`PYWORKER_OCR_VLM_MODEL=gemma4:e4b`, and `PYWORKER_OCR_VLM_FALLBACK_MODEL=gemma4:e2b`.
-In `apps/web/.env`, set `UDIP_PLLUM_URL=http://127.0.0.1:11434`,
-`UDIP_PLLUM_MODEL=gemma4:e4b`, `UDIP_LLM_FALLBACK_MODEL=gemma4:e2b`, and optionally
-`UDIP_PLLUM_TIMEOUT_MS=75000`.
-
-## Local UDIP PII and OCR
-
-Use Python 3.12 for the optional inference environment. From the repository root:
-
-```powershell
-pnpm pyworker:setup
-.\apps\pyworker\.venv\Scripts\python.exe -m pip install -r apps/pyworker/requirements-udip.txt
-```
-
-In `apps/pyworker/.env`, set `UDIP_PII_MODEL_DIR` to the absolute path of the
-[pinned PII-Tracer checkout](docs/UDIP_COMPLETE_IDEA.md#download-pii-tracer-for-local-development).
-For Polish OCR, extract the official
-[PP-OCRv5_server_det and latin_PP-OCRv5_mobile_rec inference models](https://www.paddleocr.ai/v3.4.1/en/version3.x/pipeline_usage/OCR.html)
-and set `UDIP_OCR_DET_MODEL_DIR` and `UDIP_OCR_REC_MODEL_DIR` to those local directories.
-Then run `pnpm dev:pyworker` and exercise the API in order using the
-[Stage 5 contracts](openspec/changes/establish-udip-backend-contract/design.md#stage-5-local-models).
-For cold model starts behind the local proxy, use the timeout settings in the
-[OCR setup guide](docs/0319-ocr-local-setup.md).
-An authorized clerk can open `/pl/udip/cases/{caseId}` to review the case
-documents and the sources for each saved draft point. Open a document to compare
-the original PDF with its transcription, retry OCR after an error, or save a
-manual correction as a new revision.
-
-## Current acceptance scope
-
-Keycloak login, localized profile/role display and the administrator product/file
-catalog are implemented. File reads require administrator authorization; avatars
-remain identity-owned. Queue diagnostics/monitoring, catalog history and offline
-local recovery tooling are covered in the
-[reliability verification](docs/0404-reliability-verification.md) and
-[recovery runbook](docs/0403-data-recovery.md). Business trash retention and
-archiving remain [backlog](docs/9999-backlog.md) work; PROD deployment is separate.
-
-## Documentation
-
-| Document | Scope |
-| --- | --- |
-| [Documentation overview](docs/0000-overview.md) | Chapter navigation and status |
-| [Keycloak login](docs/0304-keycloak-login.md) | Server-side login, session storage, DEV setup and verification |
-| [Application database](docs/0303-prisma-database.md) | Prisma package, UUIDv7 identity references and CLI migrations |
-| [Development cookbook](docs/0300-cookbook.md) | Practical setup, UI and translation recipes |
-| [Python worker](docs/0314-python-worker.md) | Structure, virtualenv, pnpm commands, source reload, health and authenticated queue integration |
-| [Local Docker: DEV and QA](docs/0302-local-docker.md) | Prepare and start local stacks, switch modes and diagnose current limitations |
-| [Runbooks](docs/0400-runbooks.md) | Startup, verification and troubleshooting |
-| [Architecture](docs/0200-architecture.md) | Selected minimal PoC |
-| [System architecture](docs/0201-system-architecture.md) | Service map, three databases, queue boundary and DEV/QA/PROD |
-| [Environment configuration](docs/0202-environment-configuration.md) | Planned layout, `packages/database`, env ownership and release configuration |
-| [Web foundation](docs/0204-web-foundation.md) | Implemented UI, PL/EN routing, dependencies, commands and checks |
-| [Web structure and API](docs/0206-web-structure.md) | Source layout, API/locale separation and health contracts |
-| [Identity and access](docs/0203-identity-and-access.md) | Custom Keycloak themes/realm, Better Auth and restricted directory API |
-| [Licensing](docs/0100-licensing.md) | Proprietary terms, contribution assignments and third-party register |
-
-## License and ownership
-
-Owner-controlled materials are subject to the
-[Proprietary Repository License](LICENSE.md), version 2.1. Access, contributions
-and commercial use require applicable authorization. Third-party components
-retain their licenses and notices.
-
-**Owner:** Kacper Boś, conducting business as Kacper Boś IT.
-Contact: [kacper.bos.it@gmail.com](mailto:kacper.bos.it@gmail.com).

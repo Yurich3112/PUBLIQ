@@ -14,7 +14,7 @@
   --mod-success: #1d4ed8;
   --mod-error: #b91c1c;
   --mod-grid: rgb(15 23 42 / 5%);
-  --mod-logo: url('../img/Modulon.svg?v=7');
+  --mod-logo: url('../img/Modulon.svg?v=8');
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -27,7 +27,7 @@
   --mod-accent: #60a5fa; --mod-accent-hover: #93c5fd; --mod-success: #60a5fa;
   --mod-error: #fca5a5;
   --mod-grid: rgb(148 163 184 / 7%);
-  --mod-logo: url('../img/ModulonDark.svg?v=7');
+  --mod-logo: url('../img/ModulonDark.svg?v=8');
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
@@ -35,7 +35,7 @@
     --mod-bg: #090d16; --mod-card: #111827; --mod-text: #f1f5f9; --mod-ring: #60a5fa; --mod-control: #1e293b; --mod-accent-text: #0a0a0a;
     --mod-muted: #94a3b8; --mod-border: #334155; --mod-input: #0b1120;
     --mod-accent: #60a5fa; --mod-accent-hover: #93c5fd; --mod-success: #60a5fa; --mod-error: #fca5a5; --mod-grid: rgb(148 163 184 / 7%);
-    --mod-logo: url('../img/ModulonDark.svg?v=7');
+    --mod-logo: url('../img/ModulonDark.svg?v=8');
   }
 }
 .login-pf, .login-pf body { background: var(--mod-bg); }

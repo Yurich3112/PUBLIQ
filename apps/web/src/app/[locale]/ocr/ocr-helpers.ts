@@ -80,22 +80,47 @@ export function findNextUncertainWordId(
   acceptedWords?: ReadonlySet<string>,
   deletedWords: ReadonlySet<string> = new Set(),
 ): { pageIndex: number; wordId: string } | null {
-  const uncertain: { pageIndex: number; wordId: string }[] = [];
+  const ordered: { pageIndex: number; wordId: string; flagged: boolean }[] = [];
   for (const page of analysis.pages) {
-    for (const word of page.words) {
-      if (deletedWords.has(word.id)) continue;
+    const seen = new Set<string>();
+    const wordMap = new Map(page.words.map(word => [word.id, word]));
+    const pushWord = (word: OcrWord) => {
+      if (seen.has(word.id) || deletedWords.has(word.id)) return;
+      seen.add(word.id);
       const flagged = acceptedWords
         ? needsWordApproval(word, editedWords, acceptedWords, deletedWords)
         : isWordUncertain(word, editedWords);
-      if (flagged) {
-        uncertain.push({ pageIndex: page.page_index, wordId: word.id });
+      ordered.push({ pageIndex: page.page_index, wordId: word.id, flagged });
+    };
+    for (const line of page.lines) {
+      for (const wordId of line.word_ids) {
+        const word = wordMap.get(wordId);
+        if (word) pushWord(word);
       }
     }
+    for (const word of page.words) {
+      pushWord(word);
+    }
   }
-  if (!uncertain.length) return null;
-  if (!currentWordId) return uncertain[0];
-  const currentIdx = uncertain.findIndex(item => item.wordId === currentWordId);
-  return currentIdx === -1 ? uncertain[0] : uncertain[(currentIdx + 1) % uncertain.length];
+
+  const flaggedItems = ordered.filter(item => item.flagged);
+  if (!flaggedItems.length) return null;
+  if (!currentWordId) {
+    return { pageIndex: flaggedItems[0].pageIndex, wordId: flaggedItems[0].wordId };
+  }
+
+  const currentIdx = ordered.findIndex(item => item.wordId === currentWordId);
+  if (currentIdx === -1) {
+    return { pageIndex: flaggedItems[0].pageIndex, wordId: flaggedItems[0].wordId };
+  }
+
+  for (let offset = 1; offset <= ordered.length; offset += 1) {
+    const candidate = ordered[(currentIdx + offset) % ordered.length];
+    if (candidate.flagged) {
+      return { pageIndex: candidate.pageIndex, wordId: candidate.wordId };
+    }
+  }
+  return null;
 }
 
 export function findAdjacentWordId(

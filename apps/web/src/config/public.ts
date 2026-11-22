@@ -7,7 +7,7 @@ const cookieNameSchema = z.string().refine(isPreferenceCookieName, "Invalid pref
 
 /** Public settings only. Unknown fields, including secrets, are stripped. */
 export const webConfigSchema = z.object({
-  APP_NAME: z.string().trim().min(1).max(100).default("Asystent UDIP · UM Bydgoszcz"),
+  APP_NAME: z.string().trim().min(1).max(100).default("PUBLIQ — Asystent UDIP · UM Bydgoszcz"),
   APP_COMPANY_NAME: z.string().trim().min(1).max(100).default("Urząd Miasta Bydgoszczy · BKS"),
   LANGUAGE_COOKIE_NAME: cookieNameSchema.default(PREFERENCE_COOKIE_NAMES.language),
   THEME_COOKIE_NAME: cookieNameSchema.default(PREFERENCE_COOKIE_NAMES.theme),

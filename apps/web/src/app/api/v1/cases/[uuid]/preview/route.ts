@@ -6,6 +6,8 @@ import { getAccess } from "@/server/auth/access";
 import { loadUdipCaseById } from "@/server/udip-cases";
 
 const SAMPLE_DOCS_DIRS = [
+  path.resolve(process.cwd(), "data", "final_responses"),
+  path.resolve(process.cwd(), "..", "..", "data", "final_responses"),
   path.resolve(process.cwd(), "docs", "Przykładowe wnioski i odpowiedzi -20261121T114640Z-1-001", "Przykładowe wnioski i odpowiedzi"),
   path.resolve(process.cwd(), "..", "..", "docs", "Przykładowe wnioski i odpowiedzi -20261121T114640Z-1-001", "Przykładowe wnioski i odpowiedzi"),
 ];
@@ -45,17 +47,21 @@ export async function GET(
     return NextResponse.json({ status: "not_found" }, { status: 404 });
   }
 
-  const match = await findSamplePdfForCase(record.caseNumber);
+  let match = await findSamplePdfForCase(record.caseNumber);
+  if (!match && record.matchedCaseNumber) {
+    match = await findSamplePdfForCase(record.matchedCaseNumber);
+  }
   if (!match) {
     return NextResponse.json({ status: "not_found" }, { status: 404 });
   }
 
   const bytes = await readFile(match.filePath);
-  return new NextResponse(bytes, {
+  return new NextResponse(new Uint8Array(bytes), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${encodeURIComponent(match.fileName)}"`,
+      "Content-Disposition": `inline; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(match.fileName)}`,
+      "X-Frame-Options": "SAMEORIGIN",
       "Cache-Control": "private, max-age=300",
     },
   });
