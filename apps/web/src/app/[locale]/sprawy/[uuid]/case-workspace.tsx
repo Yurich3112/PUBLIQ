@@ -178,6 +178,8 @@ export function CaseWorkspace({ caseUuid, polish }: { caseUuid: string; polish: 
           setItem(json.case);
           setDraftText(json.case.draftResponseText || composeBksDraft(json.case));
         }
+      } catch {
+        // Ignore AbortError from React Strict Mode unmount or transient network errors
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
