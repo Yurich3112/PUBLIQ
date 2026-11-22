@@ -7,6 +7,7 @@
 **PUBLIQ** to przeglądarkowa (bez instalacji `.exe`) aplikacja intranetowa, która skraca obsługę wniosków o udostępnienie informacji publicznej (UDIP) z wielu dni do kilku minut — przy zachowaniu **100% lokalnego działania offline (air-gapped)** na otwartowagowych modelach **Gemma 4 (Apache 2.0)**.
 
 ---
+VIDEO https://fex.net/uk/s/0moamz3
 
 ## Co potrafi PUBLIQ?
 
