@@ -37,6 +37,17 @@ STRIP_SYSTEM_PROMPT = (
     "(np. TRY bIE → TRYBIE, BYD GOSZCZ → BYDGOSZCZ) i nie wstawiaj kropek między literami. "
     "Zwróć TYLKO linie w formacie: [k] <poprawiony tekst>"
 )
+PROOFREAD_SYSTEM_PROMPT = (
+    "Jesteś korektorem tekstu po OCR polskich pism urzędowych (Urząd Miasta Bydgoszczy, UDIP). "
+    "Otrzymasz ponumerowane wiersze [1]..[N] odczytane z pisma odręcznego. "
+    "Popraw WYŁĄCZNIE oczywiste literówki OCR na podstawie kontekstu całego zdania w języku polskim "
+    "(typowa zamiana liter w piśmie ręcznym: J→I np. 'JLE'→'ILE', 'OBECIA FUNDUCJI'→'OBJĘCIA FUNKCJI', "
+    "'BRUSWEGO'→'BRUSKIEGO', 'PO DNIA DZIESIĄTEGO'→'DO DNIA DZISIEJSZEGO', 'OPOWIEDZIAŁ W TRYBIE'→'ODPOWIEDŹ W TRYBIE'). "
+    "ZASADY BEZWZGLĘDNE:\n"
+    "1. Zachowaj dokładnie tę samą liczbę i numerację wierszy [1]..[N].\n"
+    "2. Nie łącz wierszy, nie dodawaj nowych słów spoza sensu zdania, nie zmieniaj dat ani imion.\n"
+    "3. Zwróć TYLKO poprawione wiersze w formacie [k] <tekst> bez żadnych komentarzy."
+)
 
 
 def _encode_crop_base64(crop_rgb: Any, *, max_edge: int = 896) -> str:
@@ -451,4 +462,75 @@ class OllamaLineRecognizer:
                     fallback_drafts=batch_hints,
                 )
             )
+
+        # Fast text-only Pass 2: proofread full document context to fix OCR typos like "JLE" -> "ILE"
+        if len(results) >= 2 and any(r.text.strip() for r in results):
+            results = await self._proofread_lines_context(results)
+
         return results
+
+    async def _proofread_lines_context(
+        self,
+        lines: list[RecognizedLine],
+    ) -> list[RecognizedLine]:
+        """Run a fast (~1s) text-only Polish proofreading pass over all lines together."""
+        numbered_input = "\n".join(
+            f"[{i + 1}] {line.text}" for i, line in enumerate(lines)
+        )
+        body = {
+            "model": self._model,
+            "stream": False,
+            "think": False,
+            "keep_alive": "15m",
+            "options": {
+                "temperature": 0.0,
+                "repeat_penalty": 1.05,
+                "num_predict": max(256, len(numbered_input) + 96),
+                "num_ctx": 2048,
+            },
+            "messages": [
+                {"role": "system", "content": PROOFREAD_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Popraw oczywiste błędy OCR w poniższych {len(lines)} wierszach, "
+                        f"zachowując dokładnie numerację [1]..[{len(lines)}]:\n{numbered_input}"
+                    ),
+                },
+            ],
+        }
+        try:
+            content = await self._post_chat(body)
+        except Exception:
+            return lines
+
+        if not content.strip():
+            return lines
+
+        fallbacks = [(line.text, line.confidence) for line in lines]
+        corrected = parse_numbered_vlm_payload(
+            content,
+            expected_lines=len(lines),
+            start_index=1,
+            fallback_drafts=fallbacks,
+        )
+        merged: list[RecognizedLine] = []
+        for orig, fixed in zip(lines, corrected, strict=False):
+            # Guard against hallucinations: keep original if line length exploded or emptied
+            orig_tokens = orig.text.split()
+            fixed_tokens = fixed.text.split()
+            if (
+                not fixed_tokens
+                or (orig_tokens and len(fixed_tokens) > len(orig_tokens) + 2)
+                or len(fixed.text) > max(40, int(len(orig.text) * 1.6))
+            ):
+                merged.append(orig)
+            else:
+                merged.append(
+                    RecognizedLine(
+                        text=fixed.text,
+                        confidence=orig.confidence,
+                        uncertain_words=orig.uncertain_words,
+                    )
+                )
+        return merged
