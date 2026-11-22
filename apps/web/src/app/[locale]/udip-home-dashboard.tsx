@@ -233,10 +233,10 @@ export function UdipHomeDashboard({
   const greetingName = firstName?.trim() || (polish ? "Urzędniku" : "Clerk");
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6">
       {/* Greeting Banner */}
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
-        <div className="space-y-1">
+      <header className="flex flex-wrap items-end justify-between gap-2 border-b border-border pb-3">
+        <div className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="capitalize">{todayLabel}</span>
             <span>·</span>
@@ -246,10 +246,10 @@ export function UdipHomeDashboard({
                 : polish ? "Urzędnik BKS" : "BKS Clerk"}
             </span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {polish ? `Dzień dobry, ${greetingName}` : `Good morning, ${greetingName}`}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground sm:text-sm">
             {loading
               ? polish ? "Sprawdzanie bieżących terminów UDIP…" : "Checking today's UDIP deadlines…"
               : stats.dueTodayOrOverdue > 0
@@ -267,51 +267,51 @@ export function UdipHomeDashboard({
       <section aria-label={polish ? "Podsumowanie dnia" : "Daily summary"} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Link
           href="/kalendarz"
-          className="flex flex-col justify-between rounded-lg border border-red-500/35 bg-red-500/[0.05] p-4 transition hover:bg-red-500/[0.09]"
+          className="flex flex-col justify-between rounded-lg border border-red-500/35 bg-red-500/[0.05] px-3.5 py-2.5 transition hover:bg-red-500/[0.09]"
         >
           <span className="flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-300">
             <ExclamationTriangleFill aria-hidden="true" className="size-3.5" />
             {polish ? "Termin dziś / po terminie" : "Due today / overdue"}
           </span>
-          <span className="mt-2 text-3xl font-bold tabular-nums text-red-700 dark:text-red-300">
+          <span className="mt-1 text-2xl font-bold tabular-nums text-red-700 dark:text-red-300">
             {loading ? "—" : stats.dueTodayOrOverdue}
           </span>
         </Link>
 
         <Link
           href="/kalendarz"
-          className="flex flex-col justify-between rounded-lg border border-amber-500/35 bg-amber-500/[0.05] p-4 transition hover:bg-amber-500/[0.09]"
+          className="flex flex-col justify-between rounded-lg border border-amber-500/35 bg-amber-500/[0.05] px-3.5 py-2.5 transition hover:bg-amber-500/[0.09]"
         >
           <span className="flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
             <ClockHistory aria-hidden="true" className="size-3.5" />
             {polish ? "Czeka na wydziały" : "Awaiting departments"}
           </span>
-          <span className="mt-2 text-3xl font-bold tabular-nums text-amber-800 dark:text-amber-300">
+          <span className="mt-1 text-2xl font-bold tabular-nums text-amber-800 dark:text-amber-300">
             {loading ? "—" : stats.awaitingDepts}
           </span>
         </Link>
 
         <Link
           href="/kalendarz"
-          className="flex flex-col justify-between rounded-lg border border-emerald-500/35 bg-emerald-500/[0.05] p-4 transition hover:bg-emerald-500/[0.09]"
+          className="flex flex-col justify-between rounded-lg border border-emerald-500/35 bg-emerald-500/[0.05] px-3.5 py-2.5 transition hover:bg-emerald-500/[0.09]"
         >
           <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
             <CheckCircleFill aria-hidden="true" className="size-3.5" />
             {polish ? "Komplet odpowiedzi" : "All replies ready"}
           </span>
-          <span className="mt-2 text-3xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+          <span className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
             {loading ? "—" : stats.readyOrOnTrack}
           </span>
         </Link>
 
         <Link
           href="/kalendarz"
-          className="flex flex-col justify-between rounded-lg border border-border bg-surface p-4 transition hover:bg-muted/50"
+          className="flex flex-col justify-between rounded-lg border border-border bg-surface px-3.5 py-2.5 transition hover:bg-muted/50"
         >
           <span className="text-xs font-medium text-muted-foreground">
             {polish ? "Zakończone (Status E)" : "Completed (Status E)"}
           </span>
-          <span className="mt-2 text-3xl font-bold tabular-nums text-foreground">
+          <span className="mt-1 text-2xl font-bold tabular-nums text-foreground">
             {loading ? "—" : stats.completed}
           </span>
         </Link>
@@ -320,22 +320,22 @@ export function UdipHomeDashboard({
       {/* Primary Navigation Launch Cards */}
       <section
         aria-label={polish ? "Szybki dostęp" : "Quick actions"}
-        className={`grid grid-cols-1 gap-4 ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}
+        className={`grid grid-cols-1 gap-3 ${isAdmin ? "md:grid-cols-3" : "md:grid-cols-2"}`}
       >
         <Link
           href="/kalendarz"
-          className="group flex flex-col justify-between gap-4 rounded-xl border border-primary/40 bg-primary/[0.05] p-5 transition hover:border-primary hover:bg-primary/[0.09]"
+          className="group flex flex-col justify-between gap-3 rounded-xl border border-primary/40 bg-primary/[0.05] p-4 transition hover:border-primary hover:bg-primary/[0.09]"
         >
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <CalendarEvent aria-hidden="true" className="size-5" />
+              <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <CalendarEvent aria-hidden="true" className="size-4" />
               </span>
               <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-primary">
                 {loading ? "…" : `${stats.activeTotal} ${polish ? "aktywnych" : "active"}`}
               </span>
             </div>
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">
               {polish ? "Kalendarz i Rejestr Wniosków" : "UDIP Request Calendar"}
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground">
@@ -344,7 +344,7 @@ export function UdipHomeDashboard({
                 : "Review all cases sorted by urgency, track department replies, preview attachments, and manage statuses A–E."}
             </p>
           </div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary group-hover:translate-x-0.5 transition">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition group-hover:translate-x-0.5">
             {polish ? "Otwórz Kalendarz" : "Open Calendar"}
             <ArrowRight aria-hidden="true" className="size-3.5" />
           </span>
@@ -352,18 +352,18 @@ export function UdipHomeDashboard({
 
         <Link
           href="/ocr"
-          className="group flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 transition hover:border-primary/60 hover:bg-muted/30"
+          className="group flex flex-col justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition hover:border-primary/60 hover:bg-muted/30"
         >
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
-                <FileEarmarkPlus aria-hidden="true" className="size-5" />
+              <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
+                <FileEarmarkPlus aria-hidden="true" className="size-4" />
               </span>
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 OCR 1:1 + AI
               </span>
             </div>
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">
               {polish ? "Wgraj nowy wniosek (PDF / Skan)" : "Upload New Request (PDF / Scan)"}
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground">
@@ -372,7 +372,7 @@ export function UdipHomeDashboard({
                 : "Upload a handwritten scan or paste an email request. Local OCR and Knowledge Base suggest the right departments or external authority."}
             </p>
           </div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground group-hover:text-primary group-hover:translate-x-0.5 transition">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground transition group-hover:translate-x-0.5 group-hover:text-primary">
             {polish ? "Przejdź do Weryfikatora OCR" : "Open OCR Verifier"}
             <ArrowRight aria-hidden="true" className="size-3.5" />
           </span>
@@ -381,18 +381,18 @@ export function UdipHomeDashboard({
         {isAdmin && (
           <Link
             href="/admin/knowledge"
-            className="group flex flex-col justify-between gap-4 rounded-xl border border-border bg-surface p-5 transition hover:border-primary/60 hover:bg-muted/30"
+            className="group flex flex-col justify-between gap-3 rounded-xl border border-border bg-surface p-4 transition hover:border-primary/60 hover:bg-muted/30"
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
-                  <Diagram3 aria-hidden="true" className="size-5" />
+                <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
+                  <Diagram3 aria-hidden="true" className="size-4" />
                 </span>
                 <span className="rounded-full bg-primary/12 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
                   Admin
                 </span>
               </div>
-              <h2 className="text-base font-semibold text-foreground">
+              <h2 className="text-sm font-semibold text-foreground sm:text-base">
                 {polish ? "Baza Wiedzy i Graf Relacyjny" : "Knowledge Base & Graph"}
               </h2>
               <p className="text-xs leading-relaxed text-muted-foreground">
@@ -401,7 +401,7 @@ export function UdipHomeDashboard({
                   : "Upload new legal acts, regulations, and archival responses and inspect where each document lands in the topic graph."}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground group-hover:text-primary group-hover:translate-x-0.5 transition">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground transition group-hover:translate-x-0.5 group-hover:text-primary">
               {polish ? "Wejdź do Bazy Wiedzy" : "Enter Knowledge Base"}
               <ArrowRight aria-hidden="true" className="size-3.5" />
             </span>
@@ -410,7 +410,7 @@ export function UdipHomeDashboard({
       </section>
 
       {/* Top Urgent Cases Preview */}
-      <section aria-label={polish ? "Najpilniejsze sprawy" : "Most urgent cases"} className="space-y-2.5">
+      <section aria-label={polish ? "Najpilniejsze sprawy" : "Most urgent cases"} className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">
             {polish ? "Najpilniejsze aktywne sprawy" : "Most urgent active cases"}
@@ -422,11 +422,11 @@ export function UdipHomeDashboard({
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center rounded-lg border border-border bg-surface py-8">
+          <div className="flex items-center justify-center rounded-lg border border-border bg-surface py-6">
             <Throbber label={polish ? "Ładowanie spraw…" : "Loading cases…"} />
           </div>
         ) : urgentPreview.length === 0 ? (
-          <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-xs text-muted-foreground">
+          <div className="rounded-lg border border-border bg-surface px-4 py-5 text-center text-xs text-muted-foreground">
             {polish ? "Brak otwartych spraw oczekujących na odpowiedź." : "No open cases awaiting response."}
           </div>
         ) : (
@@ -449,7 +449,7 @@ export function UdipHomeDashboard({
               return (
                 <div
                   key={item.uuid}
-                  className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs ${borderClass}`}
+                  className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs ${borderClass}`}
                 >
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex flex-wrap items-center gap-2">
