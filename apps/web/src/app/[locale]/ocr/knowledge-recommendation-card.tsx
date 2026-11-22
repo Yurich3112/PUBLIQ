@@ -12,6 +12,7 @@ import {
   LightningChargeFill,
 } from "react-bootstrap-icons";
 import { API_ROUTES } from "@/config/api-routes";
+import { Link } from "@/i18n/navigation";
 import type { VerifiedOcrPayload } from "@/schemas/ocr";
 import { Button, Input, Throbber } from "@/ui/basic";
 
@@ -356,9 +357,17 @@ export function KnowledgeRecommendationCard({
                     })}
                   </span>
                 </div>
-                <span className="font-mono text-[11px]">
-                  Status: {createdCase.processStatus}
-                </span>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/sprawy/${createdCase.uuid}` as "/"}
+                    className="font-semibold text-blue-700 underline dark:text-blue-300"
+                  >
+                    Otwórz sprawę →
+                  </Link>
+                  <Link href="/" className="text-muted-foreground underline">
+                    Kalendarz
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="flex justify-end">
