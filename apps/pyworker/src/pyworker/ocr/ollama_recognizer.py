@@ -507,7 +507,15 @@ class OllamaLineRecognizer:
         if not content.strip():
             return lines
 
-        fallbacks = [(line.text, line.confidence) for line in lines]
+        fallbacks = [
+            (
+                line.text,
+                sum(t.confidence for t in line.tokens) / len(line.tokens)
+                if line.tokens
+                else 0.72,
+            )
+            for line in lines
+        ]
         corrected = parse_numbered_vlm_payload(
             content,
             expected_lines=len(lines),
@@ -526,11 +534,5 @@ class OllamaLineRecognizer:
             ):
                 merged.append(orig)
             else:
-                merged.append(
-                    RecognizedLine(
-                        text=fixed.text,
-                        confidence=orig.confidence,
-                        uncertain_words=orig.uncertain_words,
-                    )
-                )
+                merged.append(fixed)
         return merged
