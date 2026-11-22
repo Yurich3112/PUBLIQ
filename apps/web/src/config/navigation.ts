@@ -1,17 +1,17 @@
-export type NavigationIcon = "home" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
-export type NavigationHref = "/" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/ocr" | "/admin" | "/admin/knowledge" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
-export type NavigationLabel = "home" | "about" | "team" | "chat" | "ocr" | "llm" | "admin" | "knowledge" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
+export type NavigationIcon = "home" | "calendar" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "colors" | "asides" | "components" | "user" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring";
+export type NavigationHref = "/" | "/kalendarz" | "/about" | "/about/team" | "/chat" | "/chat/settings" | "/ocr" | "/admin" | "/admin/knowledge" | "/admin/users" | "/admin/files" | "/admin/products" | "/admin/tags" | "/admin/queue" | "/admin/settings" | "/admin/monitoring" | "/test" | `/test#${string}`;
+export type NavigationLabel = "home" | "calendar" | "caseDetail" | "about" | "team" | "chat" | "ocr" | "llm" | "admin" | "knowledge" | "overview" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "gallery" | "colors" | "asides" | "buttons" | "userPanel";
 export type NavigationItem = { href: NavigationHref; label: NavigationLabel; icon: NavigationIcon; exact?: boolean };
 
 const home: NavigationItem = { href: "/", label: "home", icon: "home", exact: true };
-const admin: NavigationItem = { href: "/admin", label: "admin", icon: "admin" };
-const about: NavigationItem = { href: "/about", label: "about", icon: "about" };
-const chat: NavigationItem = { href: "/chat", label: "chat", icon: "chat" };
+const calendar: NavigationItem = { href: "/kalendarz", label: "calendar", icon: "calendar" };
 const ocr: NavigationItem = { href: "/ocr", label: "ocr", icon: "ocr" };
+const knowledgeAdmin: NavigationItem = { href: "/admin/knowledge", label: "knowledge", icon: "knowledge" };
+const admin: NavigationItem = { href: "/admin", label: "admin", icon: "admin" };
 
 /** Visibility is supplied by the server's role decision; destinations still enforce authorization. */
 export function primaryNavigation(allowAdmin: boolean, signedIn: boolean): NavigationItem[] {
-  return [home, about, ...(signedIn ? [chat, ocr] : []), ...(allowAdmin ? [admin] : [])];
+  return [home, ...(signedIn ? [calendar, ocr] : []), ...(allowAdmin ? [knowledgeAdmin] : [])];
 }
 
 export function normalizeNavigationPath(pathname: string): string {
@@ -21,34 +21,17 @@ export function normalizeNavigationPath(pathname: string): string {
 export function navigationActive(pathname: string, item: NavigationItem): boolean {
   const path = normalizeNavigationPath(pathname);
   const target = normalizeNavigationPath(item.href);
+  if (target === "/admin/knowledge" && !item.exact && (path === "/admin" || path.startsWith("/admin/"))) return true;
   return path === target || (!item.exact && target !== "/" && path.startsWith(`${target}/`));
 }
 
-export function secondaryNavigation(pathname: string, allowAdmin: boolean): { label: "adminNavigation" | "galleryNavigation" | "aboutNavigation" | "chatNavigation"; items: NavigationItem[] } | null {
+export function secondaryNavigation(pathname: string, allowAdmin: boolean): { label: "adminNavigation" | "galleryNavigation"; items: NavigationItem[] } | null {
   const path = normalizeNavigationPath(pathname);
-  if (allowAdmin && navigationActive(path, chat)) return {
-    label: "chatNavigation", items: [
-      { ...chat, exact: true },
-      { href: "/chat/settings", label: "llm", icon: "settings", exact: true },
-    ],
-  };
-  if (navigationActive(path, about)) return {
-    label: "aboutNavigation", items: [
-      { ...about, exact: true },
-      { href: "/about/team", label: "team", icon: "team", exact: true },
-    ],
-  };
   if (allowAdmin && navigationActive(path, admin)) return {
     label: "adminNavigation", items: [
-      { href: "/admin", label: "overview", icon: "admin", exact: true },
       { href: "/admin/knowledge", label: "knowledge", icon: "knowledge", exact: true },
-      { href: "/admin/monitoring", label: "monitoring", icon: "monitoring", exact: true },
       { href: "/admin/users", label: "users", icon: "user", exact: true },
-      { href: "/admin/files", label: "files", icon: "files", exact: true },
-      { href: "/admin/products", label: "products", icon: "products" },
-      { href: "/admin/tags", label: "tags", icon: "tags", exact: true },
-      { href: "/admin/queue", label: "queue", icon: "queue", exact: true },
-      { href: "/admin/settings", label: "settings", icon: "settings" },
+      { href: "/admin/monitoring", label: "monitoring", icon: "monitoring", exact: true },
     ],
   };
   if (path === "/test") return { label: "galleryNavigation", items: [
@@ -60,22 +43,21 @@ export function secondaryNavigation(pathname: string, allowAdmin: boolean): { la
   return null;
 }
 
-export type BreadcrumbRoute = { label: "home" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/about" | "/chat" | "/ocr" | "/admin" | "/test" | "/admin/products" };
+export type BreadcrumbRoute = { label: "home" | "calendar" | "caseDetail" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/kalendarz" | "/about" | "/chat" | "/ocr" | "/admin" | "/admin/knowledge" | "/test" | "/admin/products" };
 export function pageBreadcrumbs(pathname: string): BreadcrumbRoute[] {
   const path = normalizeNavigationPath(pathname);
-  if (path === "/chat") return [{ label: "home", href: "/" }, { label: "chat" }];
+  if (path === "/kalendarz") return [{ label: "home", href: "/" }, { label: "calendar" }];
+  if (path.startsWith("/sprawy/")) return [{ label: "home", href: "/" }, { label: "calendar", href: "/kalendarz" }, { label: "caseDetail" }];
   if (path === "/ocr") return [{ label: "home", href: "/" }, { label: "ocr" }];
-  if (path === "/chat/settings") return [{ label: "home", href: "/" }, { label: "chat", href: "/chat" }, { label: "llm" }];
-  if (path === "/about") return [{ label: "home", href: "/" }, { label: "about" }];
-  if (path === "/about/team") return [{ label: "home", href: "/" }, { label: "about", href: "/about" }, { label: "team" }];
-  if (path === '/admin/knowledge') return [{ label: 'home', href: '/' }, { label: 'admin', href: '/admin' }, { label: 'knowledge' }];
-  if (path === '/admin/monitoring') return [{ label: 'home', href: '/' }, { label: 'admin', href: '/admin' }, { label: 'monitoring' }];
-  if (path === "/admin/products/create") return [
-    { label: "home", href: "/" }, { label: "admin", href: "/admin" }, { label: "products", href: "/admin/products" }, { label: "createProduct" },
-  ];
-  if (path === "/admin/users" || path === "/admin/files" || path === "/admin/products" || path === "/admin/tags" || path === "/admin/queue" || path === "/admin/settings") {
-    return [{ label: "home", href: "/" }, { label: "admin", href: "/admin" }, { label: path === "/admin/users" ? "users" : path === "/admin/files" ? "files" : path === "/admin/tags" ? "tags" : path === "/admin/queue" ? "queue" : path === "/admin/settings" ? "settings" : "products" }];
+  if (path === "/admin/knowledge") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "knowledge" }];
+  if (path === "/admin/monitoring") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "monitoring" }];
+  if (path === "/admin/users") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "users" }];
+  if (path === "/admin/files" || path === "/admin/products" || path === "/admin/tags" || path === "/admin/queue" || path === "/admin/settings") {
+    return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: path === "/admin/files" ? "files" : path === "/admin/tags" ? "tags" : path === "/admin/queue" ? "queue" : path === "/admin/settings" ? "settings" : "products" }];
   }
+  if (path === "/admin/products/create") return [
+    { label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "products", href: "/admin/products" }, { label: "createProduct" },
+  ];
   const current = path === "/admin" ? "admin" : path === "/test" ? "gallery" : path === "/access-denied" ? "accessDenied" : null;
   return current ? [{ label: "home", href: "/" }, { label: current }] : [];
 }

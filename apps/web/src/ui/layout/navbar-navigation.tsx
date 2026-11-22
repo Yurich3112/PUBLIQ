@@ -13,7 +13,7 @@ export function PrimaryNavigation({ allowAdmin = false, signedIn = false }: { al
   const pathname = usePathname();
   const items = primaryNavigation(allowAdmin, signedIn);
   return <>
-    <div className="hidden min-w-0 @min-[768px]/navbar:block"><NavigationGroup items={items} pathname={pathname} label={t("primary")} /></div>
+    <div className="hidden min-w-0 justify-self-center @min-[768px]/navbar:block"><NavigationGroup items={items} pathname={pathname} label={t("primary")} /></div>
     <NavbarPopover label={t("menu")} icon={<List aria-hidden="true" className="size-5" />} className="@min-[768px]/navbar:hidden" align="left">
       <NavigationGroup items={items} pathname={pathname} label={t("primary")} variant="mobile" />
     </NavbarPopover>

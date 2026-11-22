@@ -123,13 +123,20 @@ async function resolveOllamaModel(baseUrl: string): Promise<string> {
     const res = await fetch(`${baseUrl}/api/tags`, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = (await res.json()) as { models?: { name?: string }[] };
-      const first = data.models?.find(m => typeof m.name === "string")?.name;
-      if (first) return first;
+      const names = (data.models ?? [])
+        .map(m => (typeof m.name === "string" ? m.name : ""))
+        .filter(Boolean);
+      const preferred =
+        names.find(n => n.startsWith("gemma4:e4b")) ??
+        names.find(n => n.startsWith("gemma4:e2b")) ??
+        names.find(n => n.startsWith("gemma4")) ??
+        names[0];
+      if (preferred) return preferred;
     }
   } catch {
-    // fallback to default model name
+    // fallback to default Gemma 4 E4B model name
   }
-  return "gemma3:4b";
+  return "gemma4:e4b";
 }
 
 async function summarizeWithLocalOllama(

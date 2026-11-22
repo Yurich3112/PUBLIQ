@@ -34,7 +34,7 @@ Key operational facts confirmed during our mentor session with **Łukasz Okońsk
 
 ## 2. End-to-End Architecture & Data Flow
 
-The UDIP module runs inside Modulon. Next.js and TypeScript own the API, access checks, workflow, documents and precedent ranking. Prisma and PostgreSQL store cases, draft versions and the anonymized knowledge base. The local Python worker handles OCR and PII detection. Local PLLuM generates validated JSON summaries and receives only selected anonymous excerpts for drafting or routing advice. See [the backend contract](../openspec/changes/establish-udip-backend-contract/design.md) for the detailed handoff.
+The UDIP module runs inside Modulon. Next.js and TypeScript own the API, access checks, workflow, documents and precedent ranking. Prisma and PostgreSQL store cases, draft versions and the anonymized knowledge base. The local Python worker handles OpenCV/RapidOCR geometry and PII detection, while **local Gemma 4 E4B (`gemma4:e4b`, Apache 2.0) with Gemma 4 E2B (`gemma4:e2b`) CPU fallback** via Ollama handles handwriting OCR refinement, validated JSON summaries, and official BKS letter/email drafting on sanitized context. See [the backend contract](../openspec/changes/establish-udip-backend-contract/design.md) for the detailed handoff.
 
 ```mermaid
 flowchart TD
@@ -43,7 +43,7 @@ flowchart TD
     Intake["Rejestracja sprawy i nadanie sygnatury"]
     Redact["PII-Tracer: urzędnik zatwierdza anonimizację wniosku"]
     Approval["Ponowne PII i akceptacja wersji pisma przez przełożonego"]
-    Summary["Lokalny PLLuM: streszczenie JSON"]
+    Summary["Lokalny Gemma 4 E4B / E2B (Apache 2.0): streszczenie JSON"]
     Match["TypeScript: dopasowanie osobno dla każdego pytania"]
     Database[("PostgreSQL: sprawy, wersje pism i baza wiedzy jsonb")]
     Draft["Projekt pisma z bieżących odpowiedzi wydziałów"]

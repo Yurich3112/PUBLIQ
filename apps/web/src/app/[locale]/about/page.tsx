@@ -1,167 +1,243 @@
-import { getTranslations } from "next-intl/server";
-import { ArrowDown, ArrowRight, BoxSeam, Check2, Check2Circle, Cloud, Cpu, Database, FileEarmarkText, HddStack, Laptop, Layers, ListTask, People, ShieldLock, Window } from "react-bootstrap-icons";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import {
+  ArrowRight,
+  Bank,
+  CalendarEvent,
+  Cpu,
+  Diagram3,
+  EyeSlashFill,
+  FileEarmarkText,
+  People,
+  ShieldCheck,
+  ShieldLock,
+} from "react-bootstrap-icons";
 import { Link } from "@/i18n/navigation";
-import { Badge, Heading, Text } from "@/ui/basic";
-import { ProjectIllustration } from "@/ui/components/project-illustration";
+import { isAppLocale } from "@/schemas/i18n";
 
-const features = [
-  { key: "identity", icon: ShieldLock, tone: "text-accent", surface: "bg-accent/10" },
-  { key: "files", icon: FileEarmarkText, tone: "text-success", surface: "bg-success/10" },
-  { key: "workspace", icon: Window, tone: "text-warning", surface: "bg-warning/10" },
-  { key: "tasks", icon: ListTask, tone: "text-accent", surface: "bg-accent/10" },
-] as const;
-const principles = [{ key: "reuse", icon: Layers }, { key: "access", icon: ShieldLock }, { key: "visibility", icon: Check2Circle }] as const;
-const workflow = [{ key: "access", icon: ShieldLock }, { key: "work", icon: FileEarmarkText }, { key: "process", icon: ListTask }, { key: "result", icon: Check2Circle }] as const;
-const flow = [{ key: "browser", icon: Laptop }, { key: "web", icon: BoxSeam }, { key: "data", icon: Database }] as const;
-const technologies = [
-  { key: "web", name: "Next.js", icon: Window },
-  { key: "auth", name: "Keycloak", icon: ShieldLock },
-  { key: "database", name: "PostgreSQL", icon: Database },
-  { key: "storage", name: "SeaweedFS", icon: HddStack },
-  { key: "queue", name: "pg-boss", icon: ListTask },
-  { key: "python", name: "Python", icon: Cpu },
-] as const;
-const environments = [{ key: "dev", icon: Laptop }, { key: "qa", icon: BoxSeam }, { key: "prod", icon: Cloud }] as const;
-const chapters = [{ key: "idea", href: "#about-idea" }, { key: "modules", href: "#about-modules" }, { key: "workflow", href: "#about-workflow" }, { key: "architecture", href: "#about-architecture" }, { key: "development", href: "#about-development" }] as const;
-
-function SectionHeading({ id, label, title, description }: { id: string; label?: string; title: string; description?: string }) {
-  return <div className="max-w-3xl space-y-3">
-    {label && <Text className="text-xs font-semibold uppercase tracking-widest text-accent">{label}</Text>}
-    <Heading level={2} id={id} className="text-2xl leading-tight sm:text-3xl">{title}</Heading>
-    {description && <Text className="text-muted-foreground">{description}</Text>}
-  </div>;
+export async function generateMetadata({ params }: PageProps<"/[locale]/about">): Promise<Metadata> {
+  const { locale } = await params;
+  const polish = locale === "pl";
+  return {
+    title: polish ? "O systemie — Asystent UDIP · UM Bydgoszcz" : "About — UDIP Assistant · UM Bydgoszcz",
+    description: polish
+      ? "Inteligentny Asystent Urzędnika do obsługi wniosków o informację publiczną (UDIP) dla Biura Komunikacji Społecznej Urzędu Miasta Bydgoszczy."
+      : "Intelligent Clerk Assistant for public information requests (UDIP) built for the City Hall of Bydgoszcz.",
+  };
 }
 
-export async function generateMetadata() {
-  const t = await getTranslations("about");
-  return { title: t("metadataTitle"), description: t("description") };
-}
+export default async function AboutPage({ params }: PageProps<"/[locale]/about">) {
+  const { locale } = await params;
+  if (!isAppLocale(locale)) notFound();
+  const polish = locale === "pl";
 
-export default async function AboutPage() {
-  const t = await getTranslations("about");
+  const pillars = [
+    {
+      icon: CalendarEvent,
+      title: polish ? "Kalendarz i Rejestr Wniosków (A–E)" : "Request Calendar & Registry (A–E)",
+      body: polish
+        ? "Obsługa ~800 spraw rocznie z oficjalną sygnaturą BKS.IV.1431.<nr>.<rok>, automatycznym sortowaniem od najpilniejszych, paskami postępu odpowiedzi wydziałów, podglądem załączników PDF i szybką kwerendą (Art. 13 ust. 2 UDIP)."
+        : "Handles ~800 requests/year with official BKS.IV.1431.<no>.<year> signatures, urgency-first sorting, live department reply bars, inline PDF previews, and quick kwerenda extensions.",
+    },
+    {
+      icon: FileEarmarkText,
+      title: polish ? "Split-Screen OCR 1:1 dla pisma ręcznego" : "1:1 Split-Screen Handwritten OCR",
+      body: polish
+        ? "Lokalny potok usuwa kratkę zeszytową (OpenCV), wyznacza ramki słów 1:1 i podświetla na czerwono niepewne wyrazy oraz edycje wymagające zatwierdzenia zielonym znacznikiem — z obsługą Ctrl+Z, usuwania artefaktów i wezwania do doprecyzowania (7 dni)."
+        : "Local pipeline erases graph-paper lines (OpenCV), aligns 1:1 word bounding boxes, highlights uncertain and edited words until accepted, supports Ctrl+Z and artifact deletion, and generates 7-day clarification notices.",
+    },
+    {
+      icon: Diagram3,
+      title: polish ? "Baza Wiedzy i Graf Relacyjny (Panel Admina)" : "Knowledge Base & Relational Graph",
+      body: polish
+        ? "Natychmiastowe dopasowanie spraw bliźniaczych z 2025/2026 r., rekomendacja właściwych wydziałów UM Bydgoszczy lub podmiotów zewnętrznych (Art. 4 ust. 3 UDIP — ZUS, ZDMiKP, WKZ) oraz wizualizacja klastra, do którego trafia nowy dokument."
+        : "Instant twin-case matching against 2025/2026 archives, routing suggestions for internal departments or external authorities (Art. 4(3) UDIP), and live cluster placement visualization for administrators.",
+    },
+    {
+      icon: EyeSlashFill,
+      title: polish ? "Generator Pism i Trwała Anonimizacja PII" : "Official BKS Drafting & Irreversible PII Cleanup",
+      body: polish
+        ? "Wszystkie 4 szablony pism BKS (odpowiedź merytoryczna, kwerenda, doprecyzowanie, brak dysponenta), skanowanie 28 kategorii PII z ochroną funkcjonariuszy publicznych (Art. 5 ust. 2 UDIP), akceptacja przełożonego i eksport czystego .txt bez możliwości cofnięcia (Ctrl+Z)."
+        : "All 4 official BKS letter templates, 28-category PII detection with Public Official Guard (Art. 5(2) UDIP), supervisor version approval, and clean .txt export with stripped values.",
+    },
+  ];
+
+  const models = [
+    {
+      task: polish ? "OCR pisma ręcznego, streszczenia JSON i projekty pism" : "Handwriting OCR, JSON Summaries & Letter Drafting",
+      model: "Gemma 4 E4B (Ollama · Apache 2.0)",
+      footprint: "~3–5 GB (GPU / CPU)",
+      why: polish
+        ? "Jeden multimodalny model otwartowagowy (obraz + tekst) obsługujący jednocześnie odczyt rękopisów, ekstrakcję JSON i redakcję pism BKS w pełni lokalnie."
+        : "Single unified open-weight multimodal model (vision + text) handling handwriting OCR, JSON summaries, and official BKS letter drafting 100% locally.",
+    },
+    {
+      task: polish ? "Lekki tryb awaryjny (stacje robocze CPU)" : "Lightweight CPU Fallback (same family)",
+      model: "Gemma 4 E2B (Ollama · Apache 2.0)",
+      footprint: "~1.5–2.5 GB RAM (CPU)",
+      why: polish
+        ? "Mniejszy model z tej samej rodziny Gemma 4 na komputery urzędowe bez dedykowanej karty GPU — pełna zgodność licencyjna Apache 2.0."
+        : "Smaller Gemma 4 family model for CPU-only municipal workstations without a dedicated GPU — same Apache 2.0 open-source license.",
+    },
+    {
+      task: polish ? "Detekcja i trwała anonimizacja PII (28 kategorii BKS)" : "PII Detection & Irreversible Redaction (28 BKS categories)",
+      model: "OpenCV + RapidOCR (ONNX) · perplexity-ai/PII-Tracer (~600M) + Regex",
+      footprint: "~1.2 GB RAM (CPU)",
+      why: polish
+        ? "Usuwa kratkę zeszytową w 5 ms, wyznacza ramki słów 1:1 [x, y, w, h] oraz wykrywa dane osobowe z ochroną funkcjonariuszy publicznych (Art. 5 ust. 2 UDIP)."
+        : "Erases graph-paper grid in 5ms, extracts 1:1 word boxes, and flags personal data with Art. 5(2) public official protection.",
+    },
+  ];
+
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="grid items-center gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-12">
-        <div className="space-y-5">
-          <Badge tone="accent">{t("eyebrow")}</Badge>
-          <Heading level={1} className="max-w-2xl text-4xl leading-tight sm:text-5xl">{t("title")}</Heading>
-          <Text className="max-w-xl text-lg text-foreground">{t("description")}</Text>
-          <Text className="max-w-xl text-muted-foreground">{t("intro")}</Text>
-          <div className="flex flex-wrap items-center gap-5 pt-2">
-            <Link href="/about/team" className="inline-flex min-h-11 items-center gap-3 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
-              {t("teamLink")} <ArrowRight aria-hidden="true" />
+    <div className="mx-auto w-full max-w-6xl space-y-12 px-4 py-8 sm:px-6 sm:py-10">
+      {/* Hero */}
+      <header className="grid items-center gap-8 overflow-hidden rounded-2xl border border-border bg-white p-6 shadow-xs dark:bg-surface lg:grid-cols-12 lg:p-8">
+        <div className="space-y-4 lg:col-span-7">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <Bank aria-hidden="true" className="size-3.5" />
+            <span>HackNation 2026 · Urząd Miasta Bydgoszczy (BKS)</span>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            {polish ? "Inteligentny Asystent Urzędnika (UDIP)" : "Intelligent Clerk Assistant (UDIP)"}
+          </h1>
+          <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+            {polish
+              ? "Przeglądarkowa aplikacja intranetowa (bez instalacji .exe) stworzona dla Biura Komunikacji Społecznej Urzędu Miasta Bydgoszczy do obsługi wniosków o udostępnienie informacji publicznej na podstawie Zarządzenia nr 535/2024 Prezydenta Miasta Bydgoszczy."
+              : "Zero-install browser intranet application built for the Public Communication Office (BKS) of Bydgoszcz City Hall to streamline public information requests under Mayor's Regulation No. 535/2024."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Link
+              href="/"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+            >
+              {polish ? "Otwórz aplikację" : "Open application"}
+              <ArrowRight aria-hidden="true" className="size-4" />
             </Link>
-            <span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><Layers aria-hidden="true" className="size-4 text-accent" />{t("currentLabel")}</span>
+            <Link
+              href="/about/team"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted"
+            >
+              <People aria-hidden="true" className="size-4" />
+              {polish ? "Zespół FeatureFromFuture" : "Team FeatureFromFuture"}
+            </Link>
           </div>
         </div>
-        <ProjectIllustration />
+
+        <div className="flex items-center justify-center lg:col-span-5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-big.png"
+            alt="Asystent UDIP"
+            className="max-h-[260px] w-full object-contain select-none"
+            draggable={false}
+          />
+        </div>
       </header>
 
-      <nav aria-label={t("contentsLabel")} className="mt-10 flex flex-wrap gap-x-2 gap-y-2 border-y border-border py-4 sm:mt-12">
-        {chapters.map(({ key, href }, index) => <a key={key} href={href} className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent/10 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-          <span aria-hidden="true" className="font-mono text-xs text-accent">0{index + 1}</span>{t(`sections.${key}`)}
-        </a>)}
-      </nav>
+      {/* 4 Core Pillars */}
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+            {polish ? "Zakres funkcjonalny" : "Core Capabilities"}
+          </p>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            {polish ? "Od wpływu wniosku do zanonimizowanej odpowiedzi w kilka minut" : "From incoming request to scrubbed response in minutes"}
+          </h2>
+        </div>
 
-      <div className="space-y-16 pt-12 sm:space-y-20 sm:pt-16">
-        <section id="about-idea" aria-labelledby="about-idea-title">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
-            <SectionHeading id="about-idea-title" label={t("idea.label")} title={t("idea.title")} description={t("idea.description")} />
-            <Text className="self-end border-l-2 border-accent/30 pl-5 text-sm text-muted-foreground">{t("idea.detail")}</Text>
-          </div>
-          <div className="mt-8 grid gap-6 sm:grid-cols-3">
-            {principles.map(({ key, icon: Icon }) => <div key={key} className="min-w-0 border-t border-border pt-5">
-              <Icon aria-hidden="true" className="mb-4 size-7 text-accent" />
-              <Heading level={3} className="text-base">{t(`idea.${key}.title`)}</Heading>
-              <Text className="mt-2 text-sm text-muted-foreground">{t(`idea.${key}.description`)}</Text>
-            </div>)}
-          </div>
-        </section>
-
-        <section id="about-modules" aria-labelledby="about-scope">
-          <SectionHeading id="about-scope" title={t("scopeTitle")} description={t("scopeDescription")} />
-          <div className="mt-7 grid gap-5 sm:grid-cols-2">
-            {features.map(({ key, icon: Icon, tone, surface }, index) => <article key={key} className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-panel-border bg-panel text-panel-foreground">
-              <div aria-hidden="true" className={`relative flex h-24 items-center justify-between overflow-hidden px-6 ${surface} ${tone}`}>
-                <Icon className="size-9" /><span className="font-mono text-sm font-semibold">0{index + 1}</span>
-                <Icon className="absolute -bottom-8 right-14 size-32 -rotate-12 opacity-10" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {pillars.map(({ icon: Icon, title, body }) => (
+            <article key={title} className="space-y-2.5 rounded-xl border border-border bg-surface p-5">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon aria-hidden="true" className="size-4" />
+                </span>
+                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
               </div>
-              <div className="flex flex-1 flex-col p-5 sm:p-6">
-                <Heading level={3} className="text-lg">{t(`scope.${key}.title`)}</Heading>
-                <Text className="mb-5 mt-3 text-sm text-muted-foreground">{t(`scope.${key}.description`)}</Text>
-                <ul className="mt-auto space-y-2 border-t border-border pt-4">
-                  {(["first", "second", "third"] as const).map(item => <li key={item} className="flex items-center gap-2 text-sm"><Check2 aria-hidden="true" className={`size-4 shrink-0 ${tone}`} />{t(`scope.${key}.${item}`)}</li>)}
-                </ul>
-              </div>
-            </article>)}
+              <p className="text-xs leading-relaxed text-muted-foreground">{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* 100% Local Offline AI Stack */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              {polish ? "Bezpieczeństwo i praca offline (Air-Gapped)" : "Security & Air-Gapped Execution"}
+            </p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              {polish ? "Lekki, lokalny stos modeli otwartowagowych" : "Lightweight Local Open-Weight AI Stack"}
+            </h2>
           </div>
-        </section>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-3 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+            <ShieldCheck aria-hidden="true" className="size-3.5" />
+            {polish ? "0 bajtów wysyłanych do chmury" : "Zero data leaves the intranet"}
+          </span>
+        </div>
 
-        <section id="about-workflow" aria-labelledby="about-workflow-title">
-          <SectionHeading id="about-workflow-title" title={t("workflowTitle")} description={t("workflowDescription")} />
-          <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {workflow.map(({ key, icon: Icon }, index) => <li key={key} className="relative min-w-0 border-l-2 border-accent/25 pl-5">
-              <div className="mb-5 flex items-center gap-3"><span className="inline-flex size-11 items-center justify-center rounded-lg bg-accent/10 text-accent"><Icon aria-hidden="true" className="size-5" /></span><span aria-hidden="true" className="font-mono text-xs font-semibold text-accent">0{index + 1}</span></div>
-              <Heading level={3} className="text-base">{t(`workflow.${key}.title`)}</Heading>
-              <Text className="mt-3 text-sm text-muted-foreground">{t(`workflow.${key}.description`)}</Text>
-            </li>)}
-          </ol>
-        </section>
-
-        <section id="about-architecture" aria-labelledby="about-architecture-title">
-          <SectionHeading id="about-architecture-title" label={t("architecture.label")} title={t("architecture.title")} description={t("architecture.description")} />
-          <div className="mt-7 overflow-hidden rounded-lg border border-panel-border bg-panel p-5 text-panel-foreground sm:p-8">
-            <ol className="grid gap-8 md:grid-cols-3">
-              {flow.map(({ key, icon: Icon }, index) => <li key={key} className="relative flex min-w-0 flex-col items-center text-center">
-                <div className={`flex size-16 items-center justify-center rounded-xl border ${key === "web" ? "border-accent bg-accent/10 text-accent" : "border-panel-border bg-background text-muted-foreground"}`}><Icon aria-hidden="true" className="size-7" /></div>
-                <Heading level={3} className="mt-4 text-base">{t(`architecture.${key}.title`)}</Heading>
-                <Text className="mt-1 text-xs text-muted-foreground">{t(`architecture.${key}.detail`)}</Text>
-                {index < flow.length - 1 && <><ArrowRight aria-hidden="true" className="absolute -right-6 top-5 hidden size-5 text-accent/60 md:block" /><ArrowDown aria-hidden="true" className="mt-5 size-4 text-accent/60 md:hidden" /></>}
-              </li>)}
-            </ol>
-            <div className="my-6 flex items-center gap-3"><span aria-hidden="true" className="h-px flex-1 bg-border" /><Text className="text-center text-xs text-muted-foreground">{t("architecture.supportTitle")}</Text><span aria-hidden="true" className="h-px flex-1 bg-border" /></div>
-            <ul className="grid gap-3 sm:grid-cols-3">
-              {[{ key: "identity", icon: ShieldLock }, { key: "queue", icon: ListTask }, { key: "python", icon: Cpu }].map(({ key, icon: Icon }) => <li key={key} className="flex items-center justify-center gap-2 rounded-md border border-panel-border px-3 py-3 text-sm"><Icon aria-hidden="true" className="size-4 shrink-0 text-accent" /><span>{t(`architecture.${key}`)}</span></li>)}
-            </ul>
-            <Text className="mt-6 text-center text-xs text-muted-foreground">{t("architecture.note")}</Text>
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-3">{polish ? "Zadanie" : "Task"}</th>
+                  <th className="px-4 py-3">{polish ? "Model / Narzędzie" : "Model / Engine"}</th>
+                  <th className="px-4 py-3">{polish ? "Zasoby" : "Footprint"}</th>
+                  <th className="px-4 py-3">{polish ? "Zastosowanie w UM Bydgoszczy" : "Role in UM Bydgoszcz"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {models.map(row => (
+                  <tr key={row.task}>
+                    <td className="px-4 py-3 font-semibold text-foreground">{row.task}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-primary">{row.model}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">{row.footprint}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{row.why}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <Heading level={3} className="mb-4 mt-8 text-lg">{t("technologyTitle")}</Heading>
-          <ul className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            {technologies.map(({ key, name, icon: Icon }) => <li key={key} className="flex min-w-0 gap-3 border-t border-border pt-4"><Icon aria-hidden="true" className="mt-1 size-5 shrink-0 text-accent" /><div><span className="text-sm font-semibold">{name}</span><Text className="mt-1 text-xs text-muted-foreground">{t(`technologies.${key}`)}</Text></div></li>)}
-          </ul>
-        </section>
+        </div>
 
-        <section aria-labelledby="about-environments-title">
-          <SectionHeading id="about-environments-title" title={t("environments.title")} description={t("environments.description")} />
-          <div className="mt-7 grid gap-4 lg:grid-cols-3">
-            {environments.map(({ key, icon: Icon }) => <article key={key} className={`min-w-0 rounded-lg border bg-panel p-5 text-panel-foreground ${key === "prod" ? "border-dashed border-panel-border" : "border-panel-border"}`}>
-              <div className="mb-5 flex items-center justify-between gap-3"><Icon aria-hidden="true" className="size-7 text-accent" /><span className="font-mono text-xs font-semibold uppercase">{key}</span></div>
-              <Badge tone={key === "prod" ? "neutral" : "accent"}>{t(key === "prod" ? "environments.planned" : "environments.available")}</Badge>
-              <Heading level={3} className="mt-4 text-base">{t(`environments.${key}.title`)}</Heading>
-              <Text className="mt-2 text-sm text-muted-foreground">{t(`environments.${key}.description`)}</Text>
-            </article>)}
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-surface p-3.5 text-xs text-muted-foreground">
+          <ShieldLock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p>
+            {polish
+              ? "Ścisła separacja ról (Urzędnik vs Administrator) przez Keycloak, pełny audyt wersji pism w PostgreSQL oraz tryb awaryjny — nawet przy wyłączonych modelach lokalnych urzędnik zachowuje pełną obsługę spraw, szablonów i ręcznej anonimizacji."
+              : "Strict role separation (Clerk vs Administrator) via Keycloak, full draft versioning in PostgreSQL, and graceful manual fallback when local models are unavailable."}
+          </p>
+        </div>
+      </section>
+
+      {/* Team CTA */}
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-surface p-5">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Cpu aria-hidden="true" className="size-5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              FeatureFromFuture · HackNation 2026
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {polish
+                ? "Rozwiązanie przygotowane dla Urzędu Miasta Bydgoszczy (Biuro Komunikacji Społecznej)."
+                : "Built for the City Hall of Bydgoszcz (Public Communication Office)."}
+            </p>
           </div>
-        </section>
-
-        <section id="about-development" aria-labelledby="about-direction">
-          <SectionHeading id="about-direction" label={t("directionLabel")} title={t("directionTitle")} description={t("directionDescription")} />
-          <div className="mt-7 grid gap-5 sm:grid-cols-2">
-            {[{ key: "local", icon: Cpu }, { key: "cloud", icon: Cloud }].map(({ key, icon: Icon }) => <article key={key} className="relative min-w-0 overflow-hidden rounded-lg border border-dashed border-accent/35 bg-panel p-5 text-panel-foreground sm:p-6">
-              <Icon aria-hidden="true" className="absolute -right-4 -top-4 size-32 text-accent opacity-5" />
-              <Icon aria-hidden="true" className="mb-5 size-8 text-accent" />
-              <span className="font-mono text-xs font-semibold text-accent">{t(`ai.${key}Path`)}</span>
-              <Heading level={3} className="mt-3 text-lg">{t(`ai.${key}Title`)}</Heading>
-              <Text className="mt-3 text-sm text-muted-foreground">{t(`ai.${key}Description`)}</Text>
-            </article>)}
-          </div>
-          <div className="mt-5 flex items-start gap-3 rounded-md bg-accent/10 p-4"><ShieldLock aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" /><Text className="text-sm text-muted-foreground">{t("ai.note")}</Text></div>
-        </section>
-
-        <section aria-labelledby="about-team-cta" className="flex flex-col gap-6 border-t border-border py-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex max-w-2xl items-start gap-4"><People aria-hidden="true" className="mt-1 size-8 shrink-0 text-accent" /><div><Heading level={2} id="about-team-cta" className="text-xl">{t("teamCta.title")}</Heading><Text className="mt-2 text-sm text-muted-foreground">{t("teamCta.description")}</Text></div></div>
-          <Link href="/about/team" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-3 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">{t("teamLink")} <ArrowRight aria-hidden="true" /></Link>
-        </section>
-      </div>
+        </div>
+        <Link
+          href="/about/team"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover"
+        >
+          {polish ? "Poznaj zespół" : "Meet the team"}
+          <ArrowRight aria-hidden="true" className="size-3.5" />
+        </Link>
+      </section>
     </div>
   );
 }

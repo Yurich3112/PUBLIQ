@@ -1,9 +1,9 @@
 export const layoutStyles = {
   navbar: "@container/navbar sticky top-0 z-40 shrink-0 border-b border-navbar-border bg-navbar text-navbar-foreground shadow-navbar",
-  navbarContent: "navbar-main mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1 px-2 @min-[640px]/navbar:flex-nowrap @min-[640px]/navbar:px-6 @min-[768px]/navbar:gap-3",
-  navbarActions: "ml-auto flex w-full shrink-0 items-center justify-end gap-1 @min-[640px]/navbar:w-auto @min-[768px]/navbar:gap-2",
+  navbarContent: "navbar-main mx-auto flex w-full max-w-7xl flex-wrap items-center gap-1 px-2 @min-[640px]/navbar:flex-nowrap @min-[640px]/navbar:px-6 @min-[768px]/navbar:grid @min-[768px]/navbar:grid-cols-[1fr_auto_1fr] @min-[768px]/navbar:gap-3",
+  navbarActions: "ml-auto flex w-full shrink-0 items-center justify-end gap-1 @min-[640px]/navbar:w-auto @min-[768px]/navbar:ml-0 @min-[768px]/navbar:justify-self-end @min-[768px]/navbar:gap-2",
   selectors: "flex shrink-0 items-center gap-1.5",
-  brand: "inline-flex h-10 min-w-8 shrink-0 items-center justify-center gap-2 rounded-sm text-base font-semibold",
+  brand: "inline-flex h-10 min-w-8 shrink-0 items-center justify-center gap-2 justify-self-start rounded-sm text-base font-semibold",
   brandLogo: "size-6 shrink-0 object-contain",
   preferencesFallback: "block size-8",
   skipLink: "sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:ring-2 focus:ring-ring",

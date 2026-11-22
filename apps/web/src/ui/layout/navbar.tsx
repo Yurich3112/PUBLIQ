@@ -4,11 +4,9 @@ import { getTranslations } from "next-intl/server";
 import type { AppLocale } from "@/schemas/i18n";
 import { Link } from "@/i18n/navigation";
 import { AuthButton } from "@/ui/components/auth-button";
-import { LangSelectorIcon } from "@/ui/components/lang-selector-icon";
-import { ThemeSelectorIcon } from "@/ui/components/theme-selector-icon";
-import { ContrastSelectorIcon } from "@/ui/components/contrast-selector-icon";
 import { NavbarFrame } from "./navbar-frame";
 import { PrimaryNavigation, SecondaryNavigation } from "./navbar-navigation";
+import { PreferencesMenu } from "./preferences-menu";
 import { layoutStyles } from "./styles";
 import { getAdminAccess } from "@/server/auth/admin-access";
 import { getAccess } from "@/server/auth/access";
@@ -37,17 +35,16 @@ export async function Navbar({ appName, locale, languageCookieName, cookieDomain
       <a href="#main-content" className={layoutStyles.skipLink}>{t("skipContent")}</a>
       <div data-navbar-main className={layoutStyles.navbarContent}>
         <Link href="/" locale={locale} aria-label={appName} className={layoutStyles.brand}>
-          <Image src="/logo.png" alt="" width={24} height={24} className={layoutStyles.brandLogo} />
-          <span className="navbar-brand-name hidden @min-[1024px]/navbar:inline-block">{appName}</span>
+          <Image src="/brand-icon.png" alt="" width={36} height={36} className="size-9 shrink-0 object-contain" />
+          <span className="navbar-brand-name hidden flex-col leading-tight @min-[1024px]/navbar:inline-flex">
+            <span className="text-sm font-semibold tracking-tight text-foreground">Asystent UDIP</span>
+            <span className="text-[10px] font-medium text-muted-foreground">UM Bydgoszcz · BKS</span>
+          </span>
         </Link>
         <Suspense fallback={<PrimaryNavigation />}><AuthorizedNavigation /></Suspense>
         <div className={layoutStyles.navbarActions}>
           <Suspense fallback={<span className={layoutStyles.preferencesFallback} aria-hidden="true" />}>
-            <div className={layoutStyles.selectors}>
-              <LangSelectorIcon cookieName={languageCookieName} />
-              <ThemeSelectorIcon cookieDomain={cookieDomain || undefined} />
-              <ContrastSelectorIcon />
-            </div>
+            <PreferencesMenu languageCookieName={languageCookieName} cookieDomain={cookieDomain} />
           </Suspense>
           <Suspense fallback={<span className="text-sm" role="status">{auth("pending")}</span>}>
             <AuthButton locale={locale} />

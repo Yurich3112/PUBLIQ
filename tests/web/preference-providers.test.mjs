@@ -71,11 +71,11 @@ test('aside shell keeps server content visible and defers browser portals until 
 
 test('navbar server output exposes translated icon labels and the current page before hydration', () => {
   const html = renderToString(h(NextIntlClientProvider, { locale: 'pl', timeZone: 'Europe/Warsaw',
-    messages: { common: { navigation: { home: 'Start', admin: 'Administracja', about: 'O projekcie', team: 'Zespół' } } } },
-  h(NavbarFrame, null, h(NavigationGroup, { items: primaryNavigation(true), pathname: '/admin', label: 'Nawigacja' }))));
+    messages: { common: { navigation: { home: 'Start', calendar: 'Kalendarz', knowledge: 'Baza Wiedzy', ocr: 'Weryfikator OCR' } } } },
+  h(NavbarFrame, null, h(NavigationGroup, { items: primaryNavigation(true, true), pathname: '/admin/knowledge', label: 'Nawigacja' }))));
   assert.match(html, /data-at-top="true"/);
-  assert.match(html, /href="\/pl\/admin"/);
+  assert.match(html, /href="\/pl\/admin\/knowledge"/);
   assert.match(html, /aria-current="page"/);
-  assert.match(html, /aria-label="Administracja"/);
-  assert.match(html, />Administracja<\/span>/);
+  assert.match(html, /aria-label="Baza Wiedzy"/);
+  assert.match(html, />Baza Wiedzy<\/span>/);
 });

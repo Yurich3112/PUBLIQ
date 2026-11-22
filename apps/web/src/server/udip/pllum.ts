@@ -22,19 +22,25 @@ function numberedQuestions(text: string) {
 }
 
 async function complete<T extends z.ZodType>(instruction: string, data: unknown, schema: T) {
-  const base = localModelUrl(process.env.UDIP_PLLUM_URL);
+  const base = localModelUrl(process.env.UDIP_PLLUM_URL ?? process.env.UDIP_LLM_URL);
   const timeout = Number(process.env.UDIP_PLLUM_TIMEOUT_MS ?? "75000");
   if (!base || !Number.isInteger(timeout) || timeout < 500 || timeout > 120_000) return null;
-  const result = await postLocalModel(new URL("/v1/chat/completions", base), {
-    model: process.env.UDIP_PLLUM_MODEL ?? "pllum", temperature: 0, stream: false, max_tokens: 2600,
-    response_format: { type: "json_object", schema: z.toJSONSchema(schema, { io: "output" }) },
-    messages: [{ role: "system", content: instruction }, { role: "user", content: JSON.stringify(data) }],
-  }, completion, { timeout, maxBytes: 512_000 });
-  if (!result) return null;
-  try {
-    const parsed = schema.safeParse(JSON.parse(result.choices[0].message.content));
-    return parsed.success ? parsed.data : null;
-  } catch { return null; }
+  const primaryModel = process.env.UDIP_PLLUM_MODEL ?? process.env.UDIP_LLM_MODEL ?? "gemma4:e4b";
+  const fallbackModel = process.env.UDIP_LLM_FALLBACK_MODEL ?? "gemma4:e2b";
+  const candidates = primaryModel === fallbackModel ? [primaryModel] : [primaryModel, fallbackModel];
+  for (const model of candidates) {
+    const result = await postLocalModel(new URL("/v1/chat/completions", base), {
+      model, temperature: 0, stream: false, max_tokens: 2600,
+      response_format: { type: "json_object", schema: z.toJSONSchema(schema, { io: "output" }) },
+      messages: [{ role: "system", content: instruction }, { role: "user", content: JSON.stringify(data) }],
+    }, completion, { timeout, maxBytes: 512_000 });
+    if (!result) continue;
+    try {
+      const parsed = schema.safeParse(JSON.parse(result.choices[0].message.content));
+      if (parsed.success) return parsed.data;
+    } catch { /* Try fallback model or return null */ }
+  }
+  return null;
 }
 
 export async function summarizeWithPllum(text: string) {

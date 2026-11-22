@@ -37,6 +37,6 @@
             <span class="mod-theme-label"></span>
         </button>
         </div>
-        <small>© ${.now?string('yyyy')} Modulon</small>
+        <small>© ${.now?string('yyyy')} Urząd Miasta Bydgoszczy · Biuro Komunikacji Społecznej</small>
     </footer>
 </#macro>

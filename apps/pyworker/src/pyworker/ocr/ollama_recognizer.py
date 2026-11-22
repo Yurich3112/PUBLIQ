@@ -1,4 +1,4 @@
-"""Stage 3: Local air-gapped Ollama Qwen2.5-VL-3B recognizer (single-page batch + line mode)."""
+"""Stage 3: Local air-gapped Ollama Gemma 4 E4B (Apache 2.0, E2B CPU fallback) recognizer."""
 
 import asyncio
 import base64

@@ -8,6 +8,7 @@ import {
   findAdjacentWordId,
   findNextUncertainWordId,
   getWordTier,
+  needsWordApproval,
 } from '../../apps/web/src/app/[locale]/ocr/ocr-helpers.ts';
 
 const SAMPLE_ANALYSIS = {
@@ -122,6 +123,13 @@ test('word tier classification, inline edits, and uncertain navigation work end-
   assert.equal(getWordTier(words[3], edits), 'verified');
   assert.equal(assembleVerifiedBodyText(SAMPLE_ANALYSIS, edits), 'ILE PUNKTÓW PRZYBYŁO');
   assert.deepEqual(findNextUncertainWordId(SAMPLE_ANALYSIS, edits, null), { pageIndex: 0, wordId: 'p0_w2' });
+
+  // Explicit approval & deletion workflow: edited words stay flagged red until accepted; deleted words are excluded.
+  assert.equal(needsWordApproval(words[1], { p0_w1: 'ILU' }, new Set(), new Set()), true);
+  assert.equal(needsWordApproval(words[1], { p0_w1: 'ILU' }, new Set(['p0_w1']), new Set()), false);
+  assert.equal(needsWordApproval(words[3], {}, new Set(), new Set()), true);
+  assert.equal(needsWordApproval(words[3], {}, new Set(['p0_w3']), new Set()), false);
+  assert.equal(assembleVerifiedBodyText(SAMPLE_ANALYSIS, edits, new Set(['p0_w2'])), 'ILE PRZYBYŁO');
 });
 
 test('buildVerifiedPayload and buildClarificationNoticeDraft produce valid BKS artifacts', () => {

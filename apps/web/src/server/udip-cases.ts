@@ -64,3 +64,11 @@ export async function attachUdipDepartmentReply(
     actorUuid: actorUuid ?? null,
   });
 }
+
+export async function deleteUdipCaseById(caseUuid: string): Promise<boolean> {
+  if (!caseUuid.trim()) return false;
+  const result = await getDatabase().udipCalendarCase.deleteMany({
+    where: { uuid: caseUuid.trim() },
+  });
+  return result.count > 0;
+}

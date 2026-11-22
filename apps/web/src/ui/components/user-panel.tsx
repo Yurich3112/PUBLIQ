@@ -217,7 +217,7 @@ export function UserPanel({ locale, displayName, firstName, lastName, email, ima
       <Separator className="my-3" />
       <div className="grid gap-2">
         {!session.expired && ADMIN_ROLES.some(role => session.roles?.includes(role)) &&
-          <><Link href="/admin" locale={locale} aria-disabled={preview || undefined}
+          <><Link href="/admin/knowledge" locale={locale} aria-disabled={preview || undefined}
             onClick={event => { if (preview) event.preventDefault(); else minimize(); }}
             className="flex min-h-9 items-center justify-center gap-2 rounded-md border border-button-border px-3 py-2 text-sm font-semibold no-underline hover:bg-button-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-button-ring">
             <ShieldLock aria-hidden="true" className="size-4 shrink-0" />{t("admin")}

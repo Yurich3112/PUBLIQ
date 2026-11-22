@@ -32,19 +32,31 @@ export async function generateMetadata({ params }: LayoutProps<"/[locale]">): Pr
   const { locale } = await params;
   if (!isAppLocale(locale)) notFound();
   const t = await getTranslations({ locale, namespace: "home" });
-  return { title: getPublicConfig().APP_NAME, description: t("description") };
+  return {
+    title: getPublicConfig().APP_NAME,
+    description: t("description"),
+    icons: {
+      icon: "/brand-favicon.png",
+      shortcut: "/brand-favicon.png",
+      apple: "/brand-icon.png",
+    },
+  };
 }
 
 export default async function RootLayout({ children, params }: LayoutProps<"/[locale]">) {
   const { locale } = await params;
   if (!isAppLocale(locale)) notFound();
   const config = getPublicConfig();
+  const prePaintPreferencesScript = `(function(){try{var c=document.cookie?document.cookie.split('; '):[];var get=function(k){for(var i=0;i<c.length;i++){var p=c[i].indexOf('=');if(p>0&&c[i].slice(0,p)===k)return decodeURIComponent(c[i].slice(p+1));}return '';};var t=get(${JSON.stringify(config.THEME_COOKIE_NAME)});var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';var k=get(${JSON.stringify(config.CONTRAST_COOKIE_NAME)});if(k==='high'||k==='normal')document.documentElement.dataset.contrast=k;}catch(e){}})();`;
   return (
     <html
       lang={locale}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: prePaintPreferencesScript }} />
+      </head>
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider>
           <ThemeProvider cookieName={config.THEME_COOKIE_NAME} cookieDomain={config.UI_PREFERENCE_COOKIE_DOMAIN}>

@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
+  ArrowLeft,
   CheckCircle,
   ClipboardCheck,
   CloudUpload,
+  EnvelopePaper,
   ExclamationTriangleFill,
   FileEarmarkText,
+  Search,
 } from "react-bootstrap-icons";
 import { API_ROUTES } from "@/config/api-routes";
+import { Link } from "@/i18n/navigation";
 import {
   MAX_OCR_UPLOAD_BYTES,
   ocrAnalysisResponseSchema,
@@ -31,7 +35,6 @@ import {
   buildVerifiedPayload,
   findAdjacentWordId,
   findNextUncertainWordId,
-  getWordDisplayText,
 } from "./ocr-helpers";
 import { ScanCanvas } from "./scan-canvas";
 import { TranscriptionPane } from "./transcription-pane";
@@ -53,6 +56,16 @@ export function OcrSplitVerifier({
   const [zoom, setZoom] = useState(100);
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
   const [editedWords, setEditedWords] = useState<Record<string, string>>({});
+  const [acceptedWords, setAcceptedWords] = useState<Set<string>>(() => new Set());
+  const [deletedWords, setDeletedWords] = useState<Set<string>>(() => new Set());
+  const [undoStack, setUndoStack] = useState<
+    {
+      editedWords: Record<string, string>;
+      acceptedWords: string[];
+      deletedWords: string[];
+      selectedWordId: string | null;
+    }[]
+  >([]);
   const [receivedDate, setReceivedDate] = useState("");
   const [registryNumber, setRegistryNumber] = useState("");
 
@@ -62,6 +75,8 @@ export function OcrSplitVerifier({
   const [matchingKb, setMatchingKb] = useState(false);
   const [matchError, setMatchError] = useState(false);
   const [matchResult, setMatchResult] = useState<KnowledgeMatchResponse | null>(null);
+  const [intakeMode, setIntakeMode] = useState<"scan" | "text">("scan");
+  const [pastedText, setPastedText] = useState("");
 
   async function handleFileUpload(file: File) {
     setErrorCode(null);
@@ -118,6 +133,9 @@ export function OcrSplitVerifier({
       setZoom(100);
       setSelectedWordId(null);
       setEditedWords({});
+      setAcceptedWords(new Set());
+      setDeletedWords(new Set());
+      setUndoStack([]);
       setReceivedDate(parsed.data.stamp_metadata.received_date ?? "");
       setRegistryNumber(parsed.data.stamp_metadata.registry_number ?? "");
     } catch {
@@ -130,31 +148,96 @@ export function OcrSplitVerifier({
 
   const handleJumpNextUncertain = useCallback(() => {
     if (!analysis) return;
-    const next = findNextUncertainWordId(analysis, editedWords, selectedWordId);
+    const next = findNextUncertainWordId(
+      analysis,
+      editedWords,
+      selectedWordId,
+      acceptedWords,
+      deletedWords,
+    );
     if (!next) return;
     setPageIndex(next.pageIndex);
     setSelectedWordId(next.wordId);
-  }, [analysis, editedWords, selectedWordId]);
+  }, [analysis, editedWords, selectedWordId, acceptedWords, deletedWords]);
 
   const handleStepWord = useCallback(
     (direction: 1 | -1) => {
       if (!analysis) return;
-      const next = findAdjacentWordId(analysis, selectedWordId, direction, pageIndex);
+      const next = findAdjacentWordId(
+        analysis,
+        selectedWordId,
+        direction,
+        pageIndex,
+        deletedWords,
+      );
       if (!next) return;
       setPageIndex(next.pageIndex);
       setSelectedWordId(next.wordId);
     },
-    [analysis, selectedWordId, pageIndex],
+    [analysis, selectedWordId, pageIndex, deletedWords],
   );
+
+  function pushUndoSnapshot() {
+    setUndoStack(prev => [
+      ...prev.slice(-49),
+      {
+        editedWords: { ...editedWords },
+        acceptedWords: Array.from(acceptedWords),
+        deletedWords: Array.from(deletedWords),
+        selectedWordId,
+      },
+    ]);
+  }
 
   function handleSelectWord(word: OcrWord) {
     setSelectedWordId(word.id);
   }
 
   function handleEditWord(wordId: string, nextText: string) {
+    pushUndoSnapshot();
     setEditedWords(prev => ({ ...prev, [wordId]: nextText }));
+    setAcceptedWords(prev => {
+      if (!prev.has(wordId)) return prev;
+      const next = new Set(prev);
+      next.delete(wordId);
+      return next;
+    });
     setVerifiedPayload(null);
   }
+
+  function handleAcceptWord(wordId: string) {
+    pushUndoSnapshot();
+    setAcceptedWords(prev => {
+      const next = new Set(prev);
+      next.add(wordId);
+      return next;
+    });
+    setVerifiedPayload(null);
+  }
+
+  function handleDeleteWord(wordId: string) {
+    if (!analysis) return;
+    pushUndoSnapshot();
+    const nextDeleted = new Set(deletedWords);
+    nextDeleted.add(wordId);
+    const adjacent = findAdjacentWordId(analysis, wordId, 1, pageIndex, nextDeleted);
+    setDeletedWords(nextDeleted);
+    setSelectedWordId(adjacent && adjacent.wordId !== wordId ? adjacent.wordId : null);
+    setVerifiedPayload(null);
+  }
+
+  const handleUndo = useCallback(() => {
+    setUndoStack(prev => {
+      if (prev.length === 0) return prev;
+      const last = prev[prev.length - 1];
+      setEditedWords(last.editedWords);
+      setAcceptedWords(new Set(last.acceptedWords));
+      setDeletedWords(new Set(last.deletedWords));
+      setSelectedWordId(last.selectedWordId);
+      setVerifiedPayload(null);
+      return prev.slice(0, -1);
+    });
+  }, []);
 
   async function handleConfirmVerification() {
     if (!analysis) return;
@@ -162,6 +245,7 @@ export function OcrSplitVerifier({
       analysis,
       fileName: fileName || "wniosek.pdf",
       editedWords,
+      deletedWords,
       receivedDate: receivedDate || null,
       registryNumber: registryNumber || null,
     });
@@ -206,63 +290,161 @@ export function OcrSplitVerifier({
     setTimeout(() => setCopiedVerified(false), 2000);
   }
 
+  async function handleAnalyzePastedText() {
+    const clean = pastedText.trim();
+    if (clean.length < 3) return;
+    const payload: VerifiedOcrPayload = {
+      fileName: "wniosek-email.txt",
+      pageCount: 1,
+      verifiedText: clean,
+      receivedDate: receivedDate || new Date().toISOString().slice(0, 10),
+      registryNumber: registryNumber || null,
+      averageConfidence: 1,
+      editedWordCount: 0,
+      totalWordCount: clean.split(/\s+/).filter(Boolean).length,
+      verifiedAt: new Date().toISOString(),
+    };
+    setVerifiedPayload(payload);
+    setMatchResult(null);
+    setMatchError(false);
+    setMatchingKb(true);
+    try {
+      const response = await fetch(API_ROUTES.knowledgeMatch, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          title: payload.fileName,
+          summary: payload.verifiedText,
+        }),
+      });
+      if (!response.ok) {
+        setMatchError(true);
+        return;
+      }
+      const json = (await response.json()) as KnowledgeMatchResponse;
+      if (json.status === "ok") {
+        setMatchResult(json);
+      } else {
+        setMatchError(true);
+      }
+    } catch {
+      setMatchError(true);
+    } finally {
+      setMatchingKb(false);
+    }
+  }
+
   const activePage = analysis?.pages[pageIndex] ?? null;
-  const selectedWord =
-    activePage && selectedWordId
-      ? activePage.words.find(w => w.id === selectedWordId) ?? null
-      : null;
-  const assembledPreview = analysis ? assembleVerifiedBodyText(analysis, editedWords) : "";
+  const assembledPreview = analysis
+    ? assembleVerifiedBodyText(analysis, editedWords, deletedWords)
+    : "";
   const clarificationDraft = buildClarificationNoticeDraft({
     fileName: fileName || "wniosek.pdf",
     receivedDate: receivedDate || null,
     registryNumber: registryNumber || null,
   });
 
-  return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-6 sm:px-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-        </div>
+  const isSplitWorkspace = Boolean(!loading && analysis && activePage);
+  const canConfirmDocument = Boolean(receivedDate.trim() && registryNumber.trim());
 
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-            className="hidden"
-            onChange={event => {
-              const file = event.target.files?.[0];
-              if (file) void handleFileUpload(file);
-              event.target.value = "";
-            }}
-          />
+  useEffect(() => {
+    if (!isSplitWorkspace) return;
+    document.body.dataset.viewportLock = "ocr";
+    return () => {
+      if (document.body.dataset.viewportLock === "ocr") {
+        delete document.body.dataset.viewportLock;
+      }
+    };
+  }, [isSplitWorkspace]);
+
+  return (
+    <div
+      data-ocr-workspace={isSplitWorkspace ? "true" : undefined}
+      className={
+        isSplitWorkspace
+          ? "mx-auto flex w-full max-w-[1520px] flex-1 min-h-0 flex-col gap-2 px-3 py-2 sm:px-5"
+          : "mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-6 sm:px-6"
+      }
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+        className="hidden"
+        onChange={event => {
+          const file = event.target.files?.[0];
+          if (file) void handleFileUpload(file);
+          event.target.value = "";
+        }}
+      />
+
+      {!analysis ? (
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
+          <div className="space-y-1">
+            <Link
+              href="/kalendarz"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft aria-hidden="true" className="size-3.5" />
+              Kalendarz Wniosków
+            </Link>
+            <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
+            <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+          </div>
+
           <Button
             tone="main-outline"
             disabled={loading}
             onClick={() => fileInputRef.current?.click()}
           >
             <CloudUpload aria-hidden="true" className="size-4" />
-            {analysis ? t("uploadAnother") : t("uploadButton")}
+            {t("uploadButton")}
           </Button>
-          {analysis && (
-            <>
-              <Button
-                tone={analysis.legibility.recommend_clarification ? "error" : "danger-outline"}
-                onClick={() => setClarificationOpen(true)}
-              >
-                <ExclamationTriangleFill aria-hidden="true" className="size-4" />
-                {t("illegibleButton")}
-              </Button>
-              <Button tone="primary" onClick={() => void handleConfirmVerification()}>
-                <CheckCircle aria-hidden="true" className="size-4" />
-                {t("confirmButton")}
-              </Button>
-            </>
+        </header>
+      ) : (
+        /* Ultra-compact single-row metadata strip; actions live directly in the left/right pane headers */
+        <header className="flex shrink-0 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs">
+          <span className="max-w-[260px] truncate font-semibold text-foreground" title={fileName}>
+            {fileName}
+          </span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {Math.round(analysis.legibility.average_confidence * 100)}%
+          </span>
+          {analysis.legibility.recommend_clarification && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+              <ExclamationTriangleFill aria-hidden="true" className="size-3" />
+              {t("illegibleBannerTitle")}
+            </span>
           )}
-        </div>
-      </header>
+
+          <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:inline-block" />
+
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>{t("stamp.receivedDate")} *:</span>
+            <Input
+              type="date"
+              required
+              value={receivedDate}
+              onChange={event => setReceivedDate(event.target.value)}
+              aria-label={t("stamp.receivedDate")}
+              className={`h-7 w-[136px] px-2 text-[11px] ${!receivedDate.trim() ? "border-amber-500/70" : ""}`}
+            />
+          </label>
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>{t("stamp.registryNumber")} *:</span>
+            <Input
+              type="text"
+              required
+              value={registryNumber}
+              placeholder="Nr wpływu"
+              onChange={event => setRegistryNumber(event.target.value)}
+              aria-label={t("stamp.registryNumber")}
+              className={`h-7 w-[120px] px-2 text-[11px] ${!registryNumber.trim() ? "border-amber-500/70" : ""}`}
+            />
+          </label>
+        </header>
+      )}
 
       {errorCode && (
         <div
@@ -282,161 +464,187 @@ export function OcrSplitVerifier({
       )}
 
       {!loading && !analysis && (
-        <div
-          onDragOver={event => event.preventDefault()}
-          onDrop={event => {
-            event.preventDefault();
-            const file = event.dataTransfer.files?.[0];
-            if (file) void handleFileUpload(file);
-          }}
-          className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-surface/60 p-10 text-center"
-        >
-          <FileEarmarkText aria-hidden="true" className="size-10 text-muted-foreground" />
-          <div className="space-y-1">
-            <p className="text-base font-medium">{t("dropTitle")}</p>
-            <p className="text-xs text-muted-foreground">{t("dropHint")}</p>
+        <div className="space-y-4">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setIntakeMode("scan")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition ${
+                intakeMode === "scan"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CloudUpload aria-hidden="true" className="size-3.5" />
+              Skan / PDF (OCR 1:1)
+            </button>
+            <button
+              type="button"
+              onClick={() => setIntakeMode("text")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition ${
+                intakeMode === "text"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <EnvelopePaper aria-hidden="true" className="size-3.5" />
+              Wklej treść z e-maila
+            </button>
           </div>
-          <Button onClick={() => fileInputRef.current?.click()}>
-            <CloudUpload aria-hidden="true" className="mr-2 size-4" />
-            {t("uploadButton")}
-          </Button>
+
+          {intakeMode === "scan" ? (
+            <div
+              onDragOver={event => event.preventDefault()}
+              onDrop={event => {
+                event.preventDefault();
+                const file = event.dataTransfer.files?.[0];
+                if (file) void handleFileUpload(file);
+              }}
+              className="flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-surface/60 p-10 text-center"
+            >
+              <FileEarmarkText aria-hidden="true" className="size-10 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="text-base font-medium">{t("dropTitle")}</p>
+                <p className="text-xs text-muted-foreground">{t("dropHint")}</p>
+              </div>
+              <Button tone="primary" onClick={() => fileInputRef.current?.click()}>
+                <CloudUpload aria-hidden="true" className="mr-2 size-4" />
+                {t("uploadButton")}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-border bg-surface p-5">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Wklej treść wniosku przesłanego e-mailem lub przez ePUAP
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  System natychmiast sprawdzi Bazę Wiedzy (sprawy bliźniacze 2025/2026), wskaże właściwy wydział lub instytucję zewnętrzną (np. ZUS, ZDMiKP, WKZ) i pozwoli zapisać sprawę w Kalendarzu.
+                </p>
+              </div>
+              <textarea
+                rows={6}
+                value={pastedText}
+                onChange={e => setPastedText(e.target.value)}
+                placeholder="Np. Wnoszę o udostępnienie informacji publicznej dotyczącej liczby uczniów cudzoziemców w szkołach podstawowych w Bydgoszczy..."
+                className="w-full rounded-lg border border-input-border bg-input p-3 text-xs text-input-foreground"
+              />
+              <div className="flex justify-end">
+                <Button
+                  tone="primary"
+                  disabled={matchingKb || pastedText.trim().length < 3}
+                  onClick={() => void handleAnalyzePastedText()}
+                >
+                  <Search aria-hidden="true" className="size-3.5" />
+                  Analizuj w Bazie Wiedzy
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {intakeMode === "text" && verifiedPayload && (
+            <KnowledgeRecommendationCard
+              key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
+              verifiedPayload={verifiedPayload}
+              matching={matchingKb}
+              matchError={matchError}
+              matchResult={matchResult}
+            />
+          )}
         </div>
       )}
 
       {!loading && analysis && activePage && (
-        <>
-          {analysis.legibility.recommend_clarification && (
-            <div
-              role="status"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/12 px-4 py-3"
-            >
-              <div className="flex items-start gap-2.5 text-sm">
-                <ExclamationTriangleFill aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                <div>
-                  <p className="font-semibold text-amber-950 dark:text-amber-100">
-                    {t("illegibleBannerTitle")}
-                  </p>
-                  <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
-                    {analysis.legibility.reason ?? t("illegibleBannerHint")}
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" tone="error" onClick={() => setClarificationOpen(true)}>
-                {t("illegibleButton")}
-              </Button>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-medium text-foreground">{fileName}</span>
-              <span>
-                {t("stats.confidence", {
-                  percent: Math.round(analysis.legibility.average_confidence * 100),
-                })}
-              </span>
-              <span>{t("stats.edited", { count: Object.keys(editedWords).length })}</span>
-              <span>{t("stats.duration", { ms: analysis.duration_ms })}</span>
-              <span className="inline-flex items-center gap-1.5 text-[11px]">
-                <span className="inline-block size-2.5 rounded-xs border-2 border-red-600 bg-red-500/25" />
-                {t("legend.low")}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[11px]">
-                <span className="inline-block size-2.5 rounded-xs border-2 border-blue-600 bg-blue-500/25" />
-                {t("inspector.selected")}
-              </span>
-            </div>
-            <span className="font-mono text-[11px]">
-              {analysis.engine.detector} · {analysis.engine.recognizer}
-            </span>
-          </div>
-
-          {/* Shared top metadata & selected-word bar so both document sheets below stay 100% level */}
-          <div className="grid grid-cols-1 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 sm:grid-cols-3">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-medium text-muted-foreground">{t("stamp.receivedDate")}</span>
-              <Input
-                type="date"
-                value={receivedDate}
-                onChange={event => setReceivedDate(event.target.value)}
-                aria-label={t("stamp.receivedDate")}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-medium text-muted-foreground">{t("stamp.registryNumber")}</span>
-              <Input
-                type="text"
-                value={registryNumber}
-                placeholder="3468/2026"
-                onChange={event => setRegistryNumber(event.target.value)}
-                aria-label={t("stamp.registryNumber")}
-              />
-            </label>
-            <div className="flex flex-col justify-center gap-1 text-xs">
-              <span className="font-medium text-muted-foreground">{t("inspector.selected")}</span>
-              {selectedWord ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <code className="font-mono font-semibold text-foreground">
-                      {getWordDisplayText(selectedWord, editedWords)}
-                    </code>
-                    <span className="text-muted-foreground">
-                      (OCR: {selectedWord.text} · {Math.round(selectedWord.confidence * 100)}%)
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-border px-2.5 py-2 text-muted-foreground">
-                  {t("transcriptionHint")}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-            <ScanCanvas
-              page={activePage}
-              pageCount={analysis.page_count}
-              zoom={zoom}
-              onZoomChange={setZoom}
-              onPageChange={next => {
-                setPageIndex(next);
-                setSelectedWordId(null);
-              }}
-              selectedWordId={selectedWordId}
-              editedWords={editedWords}
-              onSelectWord={handleSelectWord}
-            />
-
-            <TranscriptionPane
-              page={activePage}
-              zoom={zoom}
-              selectedWordId={selectedWordId}
-              editedWords={editedWords}
-              onSelectWord={handleSelectWord}
-              onEditWord={handleEditWord}
-              onJumpNextUncertain={handleJumpNextUncertain}
-              onStepWord={handleStepWord}
-            />
-          </div>
-
-          {verifiedPayload && (
+        <div
+          className={`grid min-h-0 flex-1 grid-cols-1 items-stretch gap-2.5 ${
+            verifiedPayload ? "lg:grid-cols-3" : "lg:grid-cols-2"
+          }`}
+        >
+          {!verifiedPayload ? (
             <>
-              <KnowledgeRecommendationCard
-                key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
-                verifiedPayload={verifiedPayload}
-                matching={matchingKb}
-                matchError={matchError}
-                matchResult={matchResult}
+              <ScanCanvas
+                page={activePage}
+                pageCount={analysis.page_count}
+                zoom={zoom}
+                onZoomChange={setZoom}
+                onPageChange={next => {
+                  setPageIndex(next);
+                  setSelectedWordId(null);
+                }}
+                selectedWordId={selectedWordId}
+                editedWords={editedWords}
+                acceptedWords={acceptedWords}
+                deletedWords={deletedWords}
+                onSelectWord={handleSelectWord}
+                onUploadAnother={() => fileInputRef.current?.click()}
+                onIllegible={() => setClarificationOpen(true)}
+                recommendClarification={analysis.legibility.recommend_clarification}
+                loading={loading}
               />
 
+              <TranscriptionPane
+                page={activePage}
+                zoom={zoom}
+                selectedWordId={selectedWordId}
+                editedWords={editedWords}
+                acceptedWords={acceptedWords}
+                deletedWords={deletedWords}
+                canUndo={undoStack.length > 0}
+                onSelectWord={handleSelectWord}
+                onEditWord={handleEditWord}
+                onAcceptWord={handleAcceptWord}
+                onDeleteWord={handleDeleteWord}
+                onUndo={handleUndo}
+                onJumpNextUncertain={handleJumpNextUncertain}
+                onStepWord={handleStepWord}
+                onConfirmDocument={() => void handleConfirmVerification()}
+                confirmDisabled={!canConfirmDocument}
+                confirmDisabledReason="Uzupełnij datę wpływu oraz numer wpływu (Kancelaria), aby zatwierdzić wniosek."
+              />
+            </>
+          ) : (
+            <>
+              {/* Column 1 (Leftmost): Read-only A4 scanned/transcribed sheet */}
+              <div className="flex min-h-0 flex-col">
+                <TranscriptionPane
+                  page={activePage}
+                  zoom={zoom}
+                  selectedWordId={null}
+                  editedWords={editedWords}
+                  acceptedWords={acceptedWords}
+                  deletedWords={deletedWords}
+                  canUndo={false}
+                  readOnly
+                  onSelectWord={handleSelectWord}
+                  onEditWord={handleEditWord}
+                  onAcceptWord={handleAcceptWord}
+                  onDeleteWord={handleDeleteWord}
+                  onUndo={handleUndo}
+                  onJumpNextUncertain={handleJumpNextUncertain}
+                  onStepWord={handleStepWord}
+                  onBackToScan={() => setVerifiedPayload(null)}
+                />
+              </div>
+
+              {/* Column 2 (Center): Vertical departments list + Wnioskodawca + Przedmiot + Save */}
+              <div className="flex min-h-0 flex-col">
+                <KnowledgeRecommendationCard
+                  key={`${verifiedPayload.fileName}:${matchResult?.topMatch?.externalKey ?? "none"}:${matchResult?.scenario ?? "pending"}`}
+                  verifiedPayload={verifiedPayload}
+                  matching={matchingKb}
+                  matchError={matchError}
+                  matchResult={matchResult}
+                />
+              </div>
+
+              {/* Column 3 (Rightmost): Approved request text */}
               <section
                 aria-label={t("verified.title")}
-                className="rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-4"
+                className="flex min-h-0 flex-col rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-3.5"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-                    <CheckCircle aria-hidden="true" className="size-4" />
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-emerald-600/20 pb-2.5">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                    <CheckCircle aria-hidden="true" className="size-3.5 shrink-0" />
                     <span>{t("verified.title")}</span>
                   </div>
                   <Button size="sm" tone="main-outline" onClick={() => void handleCopyVerifiedText()}>
@@ -444,13 +652,13 @@ export function OcrSplitVerifier({
                     {copiedVerified ? t("verified.copied") : t("verified.copyText")}
                   </Button>
                 </div>
-                <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs">
+                <pre className="mt-2.5 min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground">
                   {assembledPreview || verifiedPayload.verifiedText}
                 </pre>
               </section>
             </>
           )}
-        </>
+        </div>
       )}
 
       <ClarificationDraftModal

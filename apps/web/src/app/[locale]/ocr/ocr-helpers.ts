@@ -29,6 +29,19 @@ export function isWordUncertain(
   return tier === "medium" || tier === "low";
 }
 
+export function needsWordApproval(
+  word: OcrWord,
+  editedWords: Readonly<Record<string, string>>,
+  acceptedWords: ReadonlySet<string>,
+  deletedWords: ReadonlySet<string>,
+): boolean {
+  if (deletedWords.has(word.id)) return false;
+  if (acceptedWords.has(word.id)) return false;
+  if (Object.prototype.hasOwnProperty.call(editedWords, word.id)) return true;
+  if (word.zone === "stamp") return false;
+  return word.confidence < LOW_CONFIDENCE_THRESHOLD;
+}
+
 export function getWordDisplayText(
   word: OcrWord,
   editedWords: Readonly<Record<string, string>>,
@@ -41,6 +54,7 @@ export function getWordDisplayText(
 export function assembleVerifiedBodyText(
   analysis: OcrAnalysisResponse,
   editedWords: Readonly<Record<string, string>>,
+  deletedWords: ReadonlySet<string> = new Set(),
 ): string {
   const lines: string[] = [];
   for (const page of analysis.pages) {
@@ -48,6 +62,7 @@ export function assembleVerifiedBodyText(
     for (const line of page.lines) {
       if (line.zone === "stamp") continue;
       const tokens = line.word_ids
+        .filter(id => !deletedWords.has(id))
         .map(id => wordMap.get(id))
         .filter((word): word is OcrWord => Boolean(word))
         .map(word => getWordDisplayText(word, editedWords).trim())
@@ -62,11 +77,17 @@ export function findNextUncertainWordId(
   analysis: OcrAnalysisResponse,
   editedWords: Readonly<Record<string, string>>,
   currentWordId: string | null,
+  acceptedWords?: ReadonlySet<string>,
+  deletedWords: ReadonlySet<string> = new Set(),
 ): { pageIndex: number; wordId: string } | null {
   const uncertain: { pageIndex: number; wordId: string }[] = [];
   for (const page of analysis.pages) {
     for (const word of page.words) {
-      if (isWordUncertain(word, editedWords)) {
+      if (deletedWords.has(word.id)) continue;
+      const flagged = acceptedWords
+        ? needsWordApproval(word, editedWords, acceptedWords, deletedWords)
+        : isWordUncertain(word, editedWords);
+      if (flagged) {
         uncertain.push({ pageIndex: page.page_index, wordId: word.id });
       }
     }
@@ -82,6 +103,7 @@ export function findAdjacentWordId(
   currentWordId: string | null,
   direction: 1 | -1,
   currentPageIndex = 0,
+  deletedWords: ReadonlySet<string> = new Set(),
 ): { pageIndex: number; wordId: string } | null {
   const ordered: { pageIndex: number; wordId: string }[] = [];
   for (const page of analysis.pages) {
@@ -89,14 +111,14 @@ export function findAdjacentWordId(
     const wordSet = new Set(page.words.map(word => word.id));
     for (const line of page.lines) {
       for (const wordId of line.word_ids) {
-        if (wordSet.has(wordId) && !seen.has(wordId)) {
+        if (wordSet.has(wordId) && !seen.has(wordId) && !deletedWords.has(wordId)) {
           seen.add(wordId);
           ordered.push({ pageIndex: page.page_index, wordId });
         }
       }
     }
     for (const word of page.words) {
-      if (!seen.has(word.id)) {
+      if (!seen.has(word.id) && !deletedWords.has(word.id)) {
         seen.add(word.id);
         ordered.push({ pageIndex: page.page_index, wordId: word.id });
       }
@@ -118,6 +140,7 @@ export function buildVerifiedPayload({
   analysis,
   fileName,
   editedWords,
+  deletedWords = new Set(),
   receivedDate,
   registryNumber,
   now = new Date(),
@@ -125,12 +148,16 @@ export function buildVerifiedPayload({
   analysis: OcrAnalysisResponse;
   fileName: string;
   editedWords: Readonly<Record<string, string>>;
+  deletedWords?: ReadonlySet<string>;
   receivedDate: string | null;
   registryNumber: string | null;
   now?: Date;
 }): VerifiedOcrPayload {
-  const bodyWords = analysis.pages.flatMap(page => page.words.filter(word => word.zone !== "stamp"));
-  const verifiedText = assembleVerifiedBodyText(analysis, editedWords) || analysis.assembled_text.trim();
+  const bodyWords = analysis.pages.flatMap(page =>
+    page.words.filter(word => word.zone !== "stamp" && !deletedWords.has(word.id)),
+  );
+  const verifiedText =
+    assembleVerifiedBodyText(analysis, editedWords, deletedWords) || analysis.assembled_text.trim();
   const normalizedDate = receivedDate && /^\d{4}-\d{2}-\d{2}$/.test(receivedDate) ? receivedDate : null;
   const normalizedRegistry = registryNumber?.trim() || null;
 

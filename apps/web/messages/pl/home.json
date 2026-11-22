@@ -1,8 +1,8 @@
 {
   "home": {
-    "title": "Wspólny rdzeń aplikacji",
-    "description": "Logowanie, pliki i zadania w jednym miejscu.",
-    "eyebrow": "Proof of concept",
+    "title": "Inteligentny Asystent Urzędnika — UM Bydgoszcz (UDIP)",
+    "description": "Kalendarz wniosków o informację publiczną, weryfikator OCR i generator odpowiedzi BKS Urzędu Miasta Bydgoszczy.",
+    "eyebrow": "Urząd Miasta Bydgoszczy · BKS",
     "about": "O projekcie",
     "team": "Poznaj zespół",
     "capabilities": {

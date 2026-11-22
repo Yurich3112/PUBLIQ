@@ -2,9 +2,9 @@
 
 /* Shared shell geometry: both navigation rows remain inside [data-navbar]. */
 .navbar-main { min-height: 48px; padding-block: 4px; transition: height 200ms ease; }
-.navbar-primary a { width: 100px; height: 48px; flex-direction: column; gap: 2px; }
-.navbar-primary a > svg { transform: scale(1); transition: transform 200ms ease; }
-.navbar-primary .navbar-link-label { max-height: 16px; overflow: hidden; opacity: 1; transition: max-height 200ms ease, opacity 200ms ease; }
+.navbar-primary a { width: 52px; height: 40px; flex-direction: row; gap: 0; }
+.navbar-primary a > svg { width: 20px; height: 20px; transform: scale(1); transition: transform 200ms ease; }
+.navbar-primary .navbar-link-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .navbar-mobile-links a { min-height: 44px; justify-content: flex-start; }
 .navbar-subnav { --subnav-size: 36px; height: 0; opacity: 0; visibility: hidden; transition: height 200ms ease, opacity 200ms ease, visibility 200ms; }
 .navbar-subnav[data-open="true"] { height: var(--subnav-size); opacity: 1; visibility: visible; border-top-width: 1px; border-bottom-width: 1px; }
@@ -22,13 +22,27 @@ body:has([data-chat-workspace]) [data-aside-content],
 body:has([data-chat-workspace]) #main-content { min-height: 0; }
 body:has([data-chat-workspace]) [data-aside-content] > :not(#main-content) { flex-shrink: 0; }
 body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
+
+@media (min-width: 768px) and (min-height: 600px) {
+  body[data-viewport-lock="calendar"] { height: 100dvh; min-height: 0; overflow: hidden; }
+  body[data-viewport-lock="calendar"] [data-aside-content],
+  body[data-viewport-lock="calendar"] #main-content { min-height: 0; overflow: hidden; }
+  body[data-viewport-lock="calendar"] [data-aside-content] > :not(#main-content) { flex-shrink: 0; }
+}
+
+@media (min-width: 1024px) and (min-height: 620px) {
+  body[data-viewport-lock="ocr"] { height: 100dvh; min-height: 0; overflow: hidden; }
+  body[data-viewport-lock="ocr"] [data-aside-content],
+  body[data-viewport-lock="ocr"] #main-content { min-height: 0; overflow: hidden; }
+  body[data-viewport-lock="ocr"] [data-aside-content] > :not(#main-content) { flex-shrink: 0; }
+  body[data-viewport-lock="ocr"] [aria-label="Ścieżka nawigacji"],
+  body[data-viewport-lock="ocr"] [aria-label="Breadcrumb"] { display: none; }
+}
 @container navbar (min-width: 640px) {
   .navbar-main { height: 48px; min-height: 44px; padding-block: 0; }
 }
 @container navbar (min-width: 768px) {
   [data-navbar][data-at-top="false"]:not(:hover):not(:focus-within) .navbar-primary a { gap: 0; }
-  [data-navbar][data-at-top="false"]:not(:hover):not(:focus-within) .navbar-primary a > svg { transform: scale(1.333333); }
-  [data-navbar][data-at-top="false"]:not(:hover):not(:focus-within) .navbar-primary .navbar-link-label { max-height: 0; opacity: 0; }
 }
 @media (pointer: coarse) { .navbar-subnav { --subnav-size: 44px; } }
 @media (prefers-reduced-motion: reduce) {
@@ -185,10 +199,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
   --muted-foreground: 0 0% 32%;
   --border: 0 0% 83%;
   --button-border: 0 0% 76%;
-  --accent: 267 66% 39%;
+  --accent: 216 82% 38%;
   --accent-foreground: 0 0% 100%;
-  --accent-hover: 267 66% 36%;
-  --accent-active: 267 66% 33%;
+  --accent-hover: 216 82% 35%;
+  --accent-active: 216 82% 32%;
   --primary: 216 82% 38%;
   --primary-foreground: 0 0% 100%;
   --primary-hover: 216 82% 35%;
@@ -282,10 +296,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
   --tooltip-background: 0 0% 100%;
   --tooltip-foreground: 0 0% 0%;
   --tooltip-border: 0 0% 100%;
-  --accent: 267 78% 78%;
+  --accent: 216 85% 72%;
   --accent-foreground: 0 0% 4%;
-  --accent-hover: 267 78% 81%;
-  --accent-active: 267 78% 84%;
+  --accent-hover: 216 85% 75%;
+  --accent-active: 216 85% 78%;
   --primary: 216 85% 72%;
   --primary-foreground: 0 0% 4%;
   --primary-hover: 216 85% 75%;
@@ -322,10 +336,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
     --tooltip-background: 0 0% 100%;
     --tooltip-foreground: 0 0% 0%;
     --tooltip-border: 0 0% 100%;
-    --accent: 267 78% 78%;
+    --accent: 216 85% 72%;
     --accent-foreground: 0 0% 4%;
-    --accent-hover: 267 78% 81%;
-    --accent-active: 267 78% 84%;
+    --accent-hover: 216 85% 75%;
+    --accent-active: 216 85% 78%;
     --primary: 216 85% 72%;
     --primary-foreground: 0 0% 4%;
     --primary-hover: 216 85% 75%;
@@ -361,10 +375,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
   --tooltip-background: 0 0% 0%;
   --tooltip-foreground: 0 0% 100%;
   --tooltip-border: 0 0% 0%;
-  --accent: 267 86% 26%;
+  --accent: 216 100% 25%;
   --accent-foreground: 0 0% 100%;
-  --accent-hover: 267 86% 24%;
-  --accent-active: 267 86% 22%;
+  --accent-hover: 216 100% 23%;
+  --accent-active: 216 100% 21%;
   --primary: 216 100% 25%;
   --primary-foreground: 0 0% 100%;
   --primary-hover: 216 100% 23%;
@@ -404,10 +418,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
   --tooltip-background: 0 0% 100%;
   --tooltip-foreground: 0 0% 0%;
   --tooltip-border: 0 0% 100%;
-  --accent: 267 100% 87%;
+  --accent: 216 100% 84%;
   --accent-foreground: 0 0% 0%;
-  --accent-hover: 267 100% 89%;
-  --accent-active: 267 100% 91%;
+  --accent-hover: 216 100% 86%;
+  --accent-active: 216 100% 88%;
   --primary: 216 100% 84%;
   --primary-foreground: 0 0% 0%;
   --primary-hover: 216 100% 86%;
@@ -441,10 +455,10 @@ body:has([data-chat-workspace]) [data-shell-footer] { display: none; }
     --tooltip-background: 0 0% 100%;
     --tooltip-foreground: 0 0% 0%;
     --tooltip-border: 0 0% 100%;
-    --accent: 267 100% 87%;
+    --accent: 216 100% 84%;
     --accent-foreground: 0 0% 0%;
-    --accent-hover: 267 100% 89%;
-    --accent-active: 267 100% 91%;
+    --accent-hover: 216 100% 86%;
+    --accent-active: 216 100% 88%;
     --primary: 216 100% 84%;
     --primary-foreground: 0 0% 0%;
     --primary-hover: 216 100% 86%;

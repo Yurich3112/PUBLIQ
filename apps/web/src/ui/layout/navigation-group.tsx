@@ -2,13 +2,13 @@
 
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Activity, BoxSeam, ChatDots, Diagram3, FileEarmarkText, Folder, Gear, Grid, HouseDoor, InfoCircle, LayoutSidebarReverse, ListTask, Palette, People, Person, Tags, UiChecksGrid } from "react-bootstrap-icons";
+import { Activity, BoxSeam, CalendarEvent, ChatDots, Diagram3, FileEarmarkText, Folder, Gear, Grid, HouseDoor, InfoCircle, LayoutSidebarReverse, ListTask, Palette, People, Person, Tags, UiChecksGrid } from "react-bootstrap-icons";
 import { Link } from "@/i18n/navigation";
 import { navigationActive, type NavigationItem } from "@/config/navigation";
 import { cx } from "@/ui/basic/styles";
 import { layoutStyles } from "./styles";
 
-const icons = { home: HouseDoor, about: InfoCircle, team: People, chat: ChatDots, ocr: FileEarmarkText, admin: Grid, knowledge: Diagram3, colors: Palette, asides: LayoutSidebarReverse, components: UiChecksGrid, user: Person, files: Folder, products: BoxSeam, tags: Tags, queue: ListTask, settings: Gear, monitoring: Activity };
+const icons = { home: HouseDoor, calendar: CalendarEvent, about: InfoCircle, team: People, chat: ChatDots, ocr: FileEarmarkText, admin: Grid, knowledge: Diagram3, colors: Palette, asides: LayoutSidebarReverse, components: UiChecksGrid, user: Person, files: Folder, products: BoxSeam, tags: Tags, queue: ListTask, settings: Gear, monitoring: Activity };
 const subscribeHash = (callback: () => void) => {
   window.addEventListener("hashchange", callback); window.addEventListener("popstate", callback);
   return () => { window.removeEventListener("hashchange", callback); window.removeEventListener("popstate", callback); };

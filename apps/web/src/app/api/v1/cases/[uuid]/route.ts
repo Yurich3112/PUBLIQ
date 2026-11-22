@@ -1,9 +1,9 @@
-import { LOGGED_ACCESS } from "@/schemas/access";
+import { ADMIN_ACCESS, LOGGED_ACCESS } from "@/schemas/access";
 import { updateUdipCaseSchema } from "@/schemas/udip-case";
 import { getAccess } from "@/server/auth/access";
 import { getAuthConfig } from "@/server/auth/config";
 import { jsonNoStore } from "@/server/http";
-import { loadUdipCaseById, patchUdipCase } from "@/server/udip-cases";
+import { deleteUdipCaseById, loadUdipCaseById, patchUdipCase } from "@/server/udip-cases";
 
 export async function GET(
   _request: Request,
@@ -51,6 +51,29 @@ export async function PATCH(
     const updated = await patchUdipCase(uuid, parsed.data, access.context.actorUuid);
     if (!updated) return jsonNoStore({ status: "notFound" }, 404);
     return jsonNoStore({ status: "ok", case: updated });
+  } catch {
+    return jsonNoStore({ status: "failed" }, 503);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ uuid: string }> },
+) {
+  if (request.headers.get("origin") !== getAuthConfig().AUTH_BASE_URL) {
+    return jsonNoStore({ status: "denied" }, 403);
+  }
+  const access = await getAccess(ADMIN_ACCESS);
+  if (access.status === "unavailable") return jsonNoStore({ status: "unavailable" }, 503);
+  if (access.status !== "allowed") {
+    return jsonNoStore({ status: "denied" }, access.status === "unauthenticated" ? 401 : 403);
+  }
+
+  const { uuid } = await context.params;
+  try {
+    const deleted = await deleteUdipCaseById(uuid);
+    if (!deleted) return jsonNoStore({ status: "notFound" }, 404);
+    return jsonNoStore({ status: "ok" });
   } catch {
     return jsonNoStore({ status: "failed" }, 503);
   }

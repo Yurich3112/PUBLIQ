@@ -1,8 +1,8 @@
 {
   "home": {
-    "title": "A shared application core",
-    "description": "Sign-in, files and tasks in one place.",
-    "eyebrow": "Proof of concept",
+    "title": "Intelligent Clerk Assistant — UM Bydgoszcz (UDIP)",
+    "description": "Public information request calendar, handwritten OCR verifier, and BKS response generator for Bydgoszcz City Hall.",
+    "eyebrow": "City Hall of Bydgoszcz · BKS",
     "about": "About the project",
     "team": "Meet the team",
     "capabilities": {

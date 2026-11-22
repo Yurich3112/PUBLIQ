@@ -63,9 +63,9 @@ To satisfy Requirement #1 & #8 (*"sprawdzić jaki realnie będzie potrzebny mode
 
 | Task | Model / Tool | Footprint | Why it fits UM Bydgoszcz |
 | :--- | :--- | :--- | :--- |
-| **PII & Anonymization** | **`perplexity-ai/PII-Tracer`** (`pplx-embed-v1-0.6b` Qwen3 bidirectional encoder) + Polish Legal Regex (28 BKS categories) | **~600M params** (~1.2 GB RAM/VRAM, runs on CPU) | Purpose-built BIOES token classifier (`private_person`, `private_address`, `private_email`, `private_phone`, `account_number`, `other_pii`) with 4096-token window. |
-| **Handwritten & Scan OCR** | **OpenCV Grid-Line Eraser** + **EasyOCR Word Detector** (`craft`) + **`Qwen2.5-VL-3B-Instruct` (Q4)** / **`TrOCR`** | **~110 MB – 2.2 GB** | Removes graph-paper lines (*kartka w kratkę*) in 5ms, extracts exact `[x, y, w, h]` word bounding boxes for the 1:1 split-screen UI, and transcribes Polish handwriting. |
-| **JSON Summaries & Drafts** | Local **`PLLuM-4B-instruct-2512` (Q4_K_M GGUF)** | **2.49 GB weights** | Summarizes redacted requests and drafts letters from selected anonymized context. TypeScript performs the matching. |
+| **OCR, JSON Summaries & Drafts (Primary)** | **`Gemma 4 E4B` (`gemma4:e4b` via Ollama · Apache 2.0)** | **~3–5 GB** | Single unified multimodal open-weight model (vision + text) for handwriting OCR refinement, JSON summaries, and official BKS letter/email drafts — 100% air-gapped. |
+| **Lightweight CPU Fallback** | **`Gemma 4 E2B` (`gemma4:e2b` via Ollama · Apache 2.0)** | **~1.5–2.5 GB RAM (CPU)** | Smaller model from the same Gemma 4 family (Apache 2.0) for CPU-only municipal workstations without a GPU. |
+| **Grid Eraser, Word Boxes & PII Guard** | **OpenCV Grid-Line Eraser** + **RapidOCR (ONNX)** + **`perplexity-ai/PII-Tracer`** (~600M) + Polish Legal Regex (28 BKS categories) | **~1.2 GB RAM (CPU)** | Removes graph-paper lines (*kartka w kratkę*) in 5ms, extracts exact `[x, y, w, h]` word bounding boxes for 1:1 split-screen UI, and performs BIOES PII detection with Art. 5 ust. 2 UDIP guard. |
 
 If a local model is unavailable, keep manual transcription, structured summaries, template drafting and manual redaction available. Final supervisor approval continues to apply.
 

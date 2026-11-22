@@ -203,24 +203,27 @@ Its readiness endpoint is `http://127.0.0.1:8010/health/ready` (`/health` is an 
 virtualenv and never install dependencies or update private environment files.
 See [all workspace commands](docs/0205-workspace-commands.md).
 
-## Local PLLuM model
+## Local Gemma 4 AI stack (Apache 2.0 via Ollama)
 
-The 2.49 GB PLLuM 4B Instruct model (Q4_K_M GGUF) is available in two parts
-in the [GitHub release for `pllum-4b-instruct-2512-q4-k-m`](https://github.com/Yurich3112/asystent_hacknation2026_FFF/releases/tag/pllum-4b-instruct-2512-q4-k-m).
-The release keeps the large weights outside the Git checkout and includes
-instructions to reassemble the GGUF and verify its SHA-256 checksum.
+All local multimodal OCR, JSON request summarization, Knowledge Base tagging, and
+official BKS letter drafting run offline on the **Gemma 4** family (**Apache 2.0**
+open-source license) via local **Ollama** (`http://127.0.0.1:11434`):
 
-Once downloaded and reassembled, the model runs offline with `llama-server`.
-Local inference was verified at `http://127.0.0.1:8080/v1/chat/completions`.
-UDIP uses its own local client. In `apps/web/.env`, set
-`UDIP_PLLUM_URL=http://127.0.0.1:8080`, `UDIP_PLLUM_MODEL=pllum` and optionally
-`UDIP_PLLUM_TIMEOUT_MS=75000`. Run the model in a separate terminal:
+- **Primary model:** `gemma4:e4b` (multimodal vision + text for OCR, JSON summaries, and letter drafts)
+- **Lightweight CPU fallback:** `gemma4:e2b` (same Gemma 4 family, sized for CPU-only workstations)
+
+Pull the models once before running offline:
 
 ```powershell
-llama-server --model 'C:\path\to\pllum.gguf' --alias pllum --host 127.0.0.1 --port 8080 --ctx-size 16384
+ollama pull gemma4:e4b
+ollama pull gemma4:e2b
 ```
 
-The application chat uses its existing OpenAI configuration.
+In `apps/pyworker/.env`, set `PYWORKER_OLLAMA_URL=http://127.0.0.1:11434`,
+`PYWORKER_OCR_VLM_MODEL=gemma4:e4b`, and `PYWORKER_OCR_VLM_FALLBACK_MODEL=gemma4:e2b`.
+In `apps/web/.env`, set `UDIP_PLLUM_URL=http://127.0.0.1:11434`,
+`UDIP_PLLUM_MODEL=gemma4:e4b`, `UDIP_LLM_FALLBACK_MODEL=gemma4:e2b`, and optionally
+`UDIP_PLLUM_TIMEOUT_MS=75000`.
 
 ## Local UDIP PII and OCR
 

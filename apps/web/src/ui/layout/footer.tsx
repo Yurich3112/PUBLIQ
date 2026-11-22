@@ -1,10 +1,8 @@
-import { getTranslations } from "next-intl/server";
-import { Suspense } from "react";
 import type { AppLocale } from "@/schemas/i18n";
+import { Link } from "@/i18n/navigation";
 import { cx } from "@/ui/basic/styles";
+import { BackToTop, SystemStatus } from "@/ui/components";
 import { layoutStyles } from "./styles";
-import { LangSelectorButton, ThemeSelectorButton, ContrastSelectorButton, SystemStatus, BackToTop } from "@/ui/components";
-import { APP_BUILD_YEAR, APP_DISPLAY_VERSION } from "@/config/version";
 
 export type FooterProps = {
   appName: string;
@@ -14,31 +12,37 @@ export type FooterProps = {
   className?: string;
 };
 
-export async function Footer({ appName, companyName, locale, languageCookieName, className }: FooterProps) {
-  const t = await getTranslations({ locale, namespace: "common" });
+export async function Footer({ appName, companyName, locale, className }: FooterProps) {
+  const polish = locale === "pl";
   return (
     <footer data-shell-footer className={cx(layoutStyles.footer, className)}>
       <div className={layoutStyles.footerContent}>
         <div className={layoutStyles.footerIdentity}>
           <SystemStatus />
-          <span className="font-medium">{appName}</span>
+          <span className="font-medium">{polish ? "Asystent UDIP · UM Bydgoszcz" : appName}</span>
           <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
-          <span>{["©", APP_BUILD_YEAR, companyName].filter(Boolean).join(" ")}</span>
-          <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
-          <a href="/LICENSE.md" target="_blank" rel="noopener noreferrer" className={layoutStyles.footerLink}>
-            {t("footer.license")}
-          </a>
-          <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
-          <span className="tabular-nums">{APP_DISPLAY_VERSION}</span>
+          <span className="text-muted-foreground">
+            {polish ? "Biuro Komunikacji Społecznej (Zarządzenie nr 535/2024)" : companyName}
+          </span>
         </div>
-        <Suspense fallback={<span className={layoutStyles.preferencesFallback} role="status">{t("navigation.loadingPreferences")}</span>}>
-          <div className={layoutStyles.footerActions}>
-            <LangSelectorButton cookieName={languageCookieName} className={layoutStyles.footerButton} />
-            <ThemeSelectorButton className={layoutStyles.footerButton} />
-            <ContrastSelectorButton className={layoutStyles.footerButton} />
-            <BackToTop />
-          </div>
-        </Suspense>
+        <div className={layoutStyles.footerActions}>
+          <Link
+            href="/about"
+            locale={locale}
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            {polish ? "O systemie" : "About"}
+          </Link>
+          <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
+          <Link
+            href="/about/team"
+            locale={locale}
+            className="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold tracking-tight text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            FeatureFromFuture - HACKNATION 2026
+          </Link>
+          <BackToTop />
+        </div>
       </div>
     </footer>
   );
