@@ -146,7 +146,7 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
-    networks: [workers]
+    networks: [workers, edge]
     cpus: ${PYWORKER_CPU_LIMIT:-2.0}
     mem_limit: ${PYWORKER_MEMORY_LIMIT:-1536m}
     healthcheck:
@@ -179,4 +179,4 @@ services:
 
 networks:
   workers:
-    internal: true
+    internal: false
