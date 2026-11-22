@@ -159,7 +159,7 @@ export function VerifiedRoutingColumns({
           routingType,
           externalAuthorityName: isExternalActive ? matchResult?.externalAuthorityHint?.name ?? null : null,
           letterTemplateType: isExternalActive ? "EXTERNAL_REDIRECT" : "MERIT_RESPONSE",
-          draftResponseText: isDepartmentQueryMode ? null : generatedDraft.trim() || null,
+          draftResponseText: generatedDraft.trim() || null,
           departments:
             isExternalActive || ownDepartment
               ? []

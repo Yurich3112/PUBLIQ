@@ -6,8 +6,15 @@ export function localModelUrl(value: string | undefined, privateHost?: string) {
   if (!value) return null;
   try {
     const url = new URL(value);
+    const allowedHosts = [
+      "127.0.0.1",
+      "localhost",
+      "[::1]",
+      privateHost,
+      process.env.PYWORKER_ALLOW_PRIVATE_NETWORK === "true" ? "host.docker.internal" : undefined,
+    ];
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/"
-      || url.search || url.hash || !["127.0.0.1", "localhost", "[::1]", privateHost].includes(url.hostname)) return null;
+      || url.search || url.hash || !allowedHosts.includes(url.hostname)) return null;
     return url;
   } catch { return null; }
 }

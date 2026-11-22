@@ -27,6 +27,7 @@ interface DeptReply {
   uuid: string;
   departmentName: string;
   status: "PENDING" | "REPLIED" | "KWERENDA_REQUESTED";
+  questionText: string | null;
   replyText: string | null;
   replyFileName: string | null;
 }
@@ -292,9 +293,13 @@ export function CaseWorkspace({
         const json = (await res.json()) as { status?: string; case?: UdipCaseDetail };
         if (!controller.signal.aborted && json.status === "ok" && json.case) {
           const initialTemplate = defaultTemplateForCase(json.case);
+          const savedIntakeDraft =
+            json.case.draftResponseText?.trim() ||
+            json.case.departmentQueries.find(d => d.questionText?.trim())?.questionText?.trim() ||
+            null;
           setItem(json.case);
           setTemplateKind(initialTemplate);
-          setDraftText(json.case.draftResponseText || composeBksDraft(json.case, initialTemplate));
+          setDraftText(savedIntakeDraft || composeBksDraft(json.case, initialTemplate));
         }
       } catch {
         // Ignore AbortError from unmount
@@ -326,6 +331,14 @@ export function CaseWorkspace({
   function handleSelectTemplate(nextKind: BksTemplateKind) {
     if (!item) return;
     setTemplateKind(nextKind);
+    const savedIntakeDraft =
+      item.draftResponseText?.trim() ||
+      item.departmentQueries.find(d => d.questionText?.trim())?.questionText?.trim() ||
+      null;
+    if (nextKind === defaultTemplateForCase(item) && savedIntakeDraft) {
+      handleDraftChange(savedIntakeDraft);
+      return;
+    }
     handleDraftChange(composeBksDraft(item, nextKind));
   }
 
@@ -617,8 +630,18 @@ export function CaseWorkspace({
                             : polish ? "Oczekuje" : "Pending"}
                         </span>
                       </div>
+                      {dept.questionText && (
+                        <div className="rounded border border-border/80 bg-muted/35 p-2 text-[11px]">
+                          <span className="font-semibold text-foreground">
+                            {polish ? "Wysłane zapytanie z BKS:" : "Sent BKS query:"}
+                          </span>
+                          <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                            {dept.questionText}
+                          </p>
+                        </div>
+                      )}
                       <p className="whitespace-pre-wrap text-muted-foreground">
-                        {dept.replyText || (polish ? "Oczekuje na treść odpowiedzi…" : "Awaiting reply…")}
+                        {dept.replyText || (polish ? "Oczekuje na treść odpowiedzi z wydziału…" : "Awaiting reply…")}
                       </p>
                       {dept.replyFileName && (
                         <div className="flex flex-nowrap items-center justify-between gap-2 pt-1">

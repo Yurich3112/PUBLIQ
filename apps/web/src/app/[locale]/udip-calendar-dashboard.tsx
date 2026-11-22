@@ -980,6 +980,16 @@ export function UdipCalendarDashboard({ polish }: { polish: boolean }) {
                                         </span>
                                       </div>
 
+                                      {dept.questionText && !dept.replyText && (
+                                        <div className="rounded border border-border/70 bg-muted/25 p-2 text-[11px]">
+                                          <span className="font-semibold text-muted-foreground">
+                                            {polish ? "Wysłane zapytanie do wydziału:" : "Sent department query:"}
+                                          </span>
+                                          <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-foreground">
+                                            {dept.questionText}
+                                          </p>
+                                        </div>
+                                      )}
                                       {dept.replyText && (
                                         <p className="line-clamp-3 rounded bg-muted/40 p-2 text-[11px] text-foreground">
                                           {dept.replyText}
