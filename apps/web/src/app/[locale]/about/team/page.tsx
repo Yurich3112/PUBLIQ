@@ -38,10 +38,11 @@ export default async function TeamPage() {
                   {member.roles.map(role => <li key={role}><Badge tone="accent">{t(role)}</Badge></li>)}
                 </ul>
               )}
-              {member.profileKey && <>
-                <Text className="mt-4 text-sm text-muted-foreground">{t(`${member.profileKey}.bio`)}</Text>
-                <blockquote className="mt-4 border-l-2 border-accent/40 pl-3 text-sm font-medium italic">{t(`${member.profileKey}.motto`)}</blockquote>
-              </>}
+              {member.profileKey && (
+                <blockquote className="mt-4 border-l-2 border-accent/40 pl-3 text-sm font-medium italic">
+                  {t(`${member.profileKey}.motto`)}
+                </blockquote>
+              )}
               <div className="mt-auto flex gap-2 pt-5">
                 {profiles.map(({ key, label, icon: Icon }) => member[key] ? (
                   <a key={key} href={member[key]} target="_blank" rel="noopener noreferrer" aria-label={t("profileLabel", { provider: label, name: member.name })}

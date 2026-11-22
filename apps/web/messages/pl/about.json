@@ -65,12 +65,30 @@
       "eyebrow": "FeatureFromFuture · HackNation 2026",
       "title": "Zespół projektowy",
       "description": "Osoby tworzące PUBLIQ — Asystenta UDIP dla Urzędu Miasta Bydgoszczy.",
-      "owner": "Właściciel projektu",
+      "owner": "Project Owner",
       "architect": "Architekt",
       "projectLead": "Lider projektu",
+      "aiLead": "AI Lead",
+      "uiUx": "UI/UX",
+      "projectManager": "Project Manager",
+      "seniorDeveloper": "Senior Developer",
+      "trainer": "Trainer",
+      "midDeveloper": "Mid Developer",
+      "ciCd": "CI/CD",
+      "jakub": {
+        "motto": "Wielbiciel chińskich modeli"
+      },
+      "natalia": {
+        "motto": "Będzie dobrze ;)"
+      },
+      "yurii": {
+        "motto": "Gemini robi brrrrrrr"
+      },
+      "stanislaw": {
+        "motto": "Nie ma to jak dobry pipeline"
+      },
       "kacper": {
-        "bio": "Odpowiada za architekturę, kierunek rozwoju i spójność techniczną projektu.",
-        "motto": "Proste rozwiązania. Solidne fundamenty."
+        "motto": "Harder Better Faster"
       },
       "namePlaceholder": "Imię i nazwisko",
       "rolePlaceholder": "Rola",
