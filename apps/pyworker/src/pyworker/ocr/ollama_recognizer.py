@@ -370,6 +370,7 @@ class OllamaLineRecognizer:
         body = {
             "model": self._model,
             "stream": False,
+            "think": False,
             "keep_alive": "15m",
             "format": "json",
             "options": {"temperature": 0.0, "repeat_penalty": 1.05, "num_predict": 128},
@@ -428,6 +429,7 @@ class OllamaLineRecognizer:
             body = {
                 "model": self._model,
                 "stream": False,
+                "think": False,
                 "keep_alive": "15m",
                 "options": {
                     "temperature": 0.0,

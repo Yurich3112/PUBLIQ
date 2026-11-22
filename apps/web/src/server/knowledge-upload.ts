@@ -164,6 +164,7 @@ async function summarizeWithLocalOllama(
         prompt,
         format: "json",
         stream: false,
+        think: false,
         options: { temperature: 0.1, num_predict: 240 },
       }),
     });
