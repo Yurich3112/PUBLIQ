@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, CloudUpload, ExclamationTriangleFill, ZoomIn, ZoomOut } from "react-bootstrap-icons";
 import type { OcrPage, OcrWord } from "@/schemas/ocr";
@@ -44,12 +44,13 @@ export function ScanCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<{ w: number; h: number } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
-      const rect = el.getBoundingClientRect();
-      setViewport({ w: Math.max(0, rect.width - 16), h: Math.max(0, rect.height - 16) });
+      const nextW = Math.max(0, el.clientWidth - 16);
+      const nextH = Math.max(0, el.clientHeight - 16);
+      setViewport(prev => (prev && prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH }));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -167,15 +168,14 @@ export function ScanCanvas({
 
       <div
         ref={containerRef}
-        className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-950/5 p-2 dark:bg-neutral-950/40"
+        className={`flex min-h-0 flex-1 items-center justify-center bg-neutral-950/5 p-2 dark:bg-neutral-950/40 ${
+          zoom > 100 ? "overflow-auto" : "overflow-hidden"
+        }`}
       >
+        {sheetWidth ? (
         <div
           className="relative m-auto shrink-0 overflow-hidden rounded-xs border border-neutral-300 bg-white shadow-sm dark:border-neutral-700"
-          style={
-            sheetWidth
-              ? { width: `${sheetWidth}px`, aspectRatio: `${page.width} / ${page.height}` }
-              : { width: `${zoom}%`, maxWidth: `${Math.round((page.width * zoom) / 100)}px`, aspectRatio: `${page.width} / ${page.height}` }
-          }
+          style={{ width: `${sheetWidth}px`, aspectRatio: `${page.width} / ${page.height}` }}
         >
           {page.preview_image_data_url ? (
             // Preview is an in-memory base64 data URL rendered directly from the OCR response.
@@ -250,6 +250,7 @@ export function ScanCanvas({
             })}
           </svg>
         </div>
+        ) : null}
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
@@ -348,7 +348,7 @@ export function OcrSplitVerifier({
   const isSplitWorkspace = Boolean(!loading && analysis && activePage);
   const canConfirmDocument = Boolean(receivedDate.trim() && registryNumber.trim());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isSplitWorkspace) return;
     document.body.dataset.viewportLock = "ocr";
     return () => {
@@ -642,14 +642,19 @@ export function OcrSplitVerifier({
                 aria-label={t("verified.title")}
                 className="flex min-h-0 flex-col rounded-xl border border-emerald-600/40 bg-emerald-500/10 p-3.5"
               >
-                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-emerald-600/20 pb-2.5">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                <div className="flex shrink-0 flex-nowrap items-center justify-between gap-2 border-b border-emerald-600/20 pb-2.5">
+                  <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
                     <CheckCircle aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span>{t("verified.title")}</span>
+                    <span className="truncate">{t("verified.title")}</span>
                   </div>
-                  <Button size="sm" tone="main-outline" onClick={() => void handleCopyVerifiedText()}>
-                    <ClipboardCheck aria-hidden="true" className="size-3.5" />
-                    {copiedVerified ? t("verified.copied") : t("verified.copyText")}
+                  <Button
+                    size="sm"
+                    tone="main-outline"
+                    className="min-w-[106px] shrink-0 justify-center whitespace-nowrap"
+                    onClick={() => void handleCopyVerifiedText()}
+                  >
+                    <ClipboardCheck aria-hidden="true" className="size-3.5 shrink-0" />
+                    {copiedVerified ? t("verified.copied") : "Kopiuj"}
                   </Button>
                 </div>
                 <pre className="mt-2.5 min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed text-foreground">

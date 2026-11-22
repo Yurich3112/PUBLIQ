@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowCounterclockwise, ArrowLeft, ArrowRight, CheckCircle, CheckLg, PencilSquare, Trash } from "react-bootstrap-icons";
 import type { OcrLine, OcrPage, OcrWord } from "@/schemas/ocr";
@@ -160,12 +160,13 @@ export function TranscriptionPane({
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = sheetContainerRef.current;
     if (!el) return;
     const update = () => {
-      const rect = el.getBoundingClientRect();
-      setViewport({ w: Math.max(0, rect.width - 16), h: Math.max(0, rect.height - 16) });
+      const nextW = Math.max(0, el.clientWidth - 16);
+      const nextH = Math.max(0, el.clientHeight - 16);
+      setViewport(prev => (prev && prev.w === nextW && prev.h === nextH ? prev : { w: nextW, h: nextH }));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -404,27 +405,20 @@ export function TranscriptionPane({
       {/* 1:1 Spatial Document Reproduction Canvas (exact same fit-to-height sizing as ScanCanvas) */}
       <div
         ref={sheetContainerRef}
-        className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-950/5 p-2 dark:bg-neutral-950/40"
+        className={`flex min-h-0 flex-1 items-center justify-center bg-neutral-950/5 p-2 dark:bg-neutral-950/40 ${
+          zoom > 100 ? "overflow-auto" : "overflow-hidden"
+        }`}
       >
         {page.words.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">{t("noBodyWords")}</p>
-        ) : (
+        ) : sheetWidth ? (
           <div
             className="relative m-auto shrink-0 overflow-hidden rounded-xs border border-neutral-300 bg-white text-neutral-900 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-            style={
-              sheetWidth
-                ? {
-                    containerType: "inline-size",
-                    width: `${sheetWidth}px`,
-                    aspectRatio: `${page.width} / ${page.height}`,
-                  }
-                : {
-                    containerType: "inline-size",
-                    width: `${zoom}%`,
-                    maxWidth: `${Math.round((page.width * zoom) / 100)}px`,
-                    aspectRatio: `${page.width} / ${page.height}`,
-                  }
-            }
+            style={{
+              containerType: "inline-size",
+              width: `${sheetWidth}px`,
+              aspectRatio: `${page.width} / ${page.height}`,
+            }}
           >
             {alignedLines.map(line => {
               const [lx, ly, lw, lh] = line.bbox;
@@ -528,7 +522,7 @@ export function TranscriptionPane({
               );
             })}
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );
