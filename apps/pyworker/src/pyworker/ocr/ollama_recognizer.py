@@ -167,6 +167,41 @@ def parse_vlm_page_payload(raw_content: str, expected_lines: int) -> list[Recogn
     return result
 
 
+POLISH_VOWELS = set("aeiouyąęóAEIOUYĄĘÓ")
+MIXED_INTERNAL_CASE_RE = re.compile(r"[a-ząćęłńóśźż][A-ZĄĆĘŁŃÓŚŹŻ]")
+TRIPLE_REPEAT_RE = re.compile(r"(.)\1\1")
+
+
+def _score_token_confidence(
+    token: str,
+    *,
+    base_conf: float,
+    changed_by_proofread: bool = False,
+) -> float:
+    """Assign realistic per-word confidence so clean Polish words stay neutral and only garbled/edited words turn red."""
+    stripped = token.strip(".,;:!?()[]\"'„”/-")
+    letters = [ch for ch in stripped if ch.isalpha()]
+    digits = [ch for ch in stripped if ch.isdigit()]
+
+    # Flag genuinely garbled tokens (<0.80 -> red highlight for quick clerk verification):
+    # 1. 4+ letters with zero Polish vowels (e.g. "ŁCPCW")
+    if len(letters) >= 4 and not any(ch in POLISH_VOWELS for ch in letters):
+        return round(min(base_conf, 0.62), 4)
+    # 2. Weird internal uppercase inside a lowercase word (e.g. "obslLgi")
+    if MIXED_INTERNAL_CASE_RE.search(stripped):
+        return round(min(base_conf, 0.64), 4)
+    # 3. Mixed digits + letters in a short token that isn't a known code/date (e.g. "wpływu:7b")
+    if letters and digits and len(stripped) <= 10 and "/" not in stripped and "." not in stripped:
+        return round(min(base_conf, 0.66), 4)
+    # 4. Triple repeated character noise
+    if TRIPLE_REPEAT_RE.search(stripped):
+        return round(min(base_conf, 0.65), 4)
+
+    if changed_by_proofread:
+        return round(min(base_conf, 0.76), 4)
+    return round(max(0.0, min(1.0, base_conf)), 4)
+
+
 def parse_numbered_vlm_payload(
     raw_content: str,
     expected_lines: int,
@@ -206,12 +241,11 @@ def parse_numbered_vlm_payload(
         vlm_text = by_index.get(row_num, "").strip()
 
         chosen = vlm_text
-        # Keep VLM-reconstructed handwritten lines in uncertain amber tier (<0.80)
-        # so the clerk can review them quickly with Alt+N, rather than falsely marking green.
+        # Trust clean VLM-transcribed Polish lines (>=0.88) while flagging garbled tokens individually.
         if draft_text and vlm_text.casefold() == draft_text.casefold() and draft_conf >= 0.82:
-            conf = round(min(0.86, draft_conf), 4)
+            conf = round(max(0.90, min(0.96, draft_conf)), 4)
         else:
-            conf = round(max(0.62, min(0.78, draft_conf if draft_text else 0.74)), 4)
+            conf = 0.88
         if draft_text and (
             not vlm_text or len(vlm_text.split()) > max(4, len(draft_text.split()) * 2 + 2)
         ):
@@ -221,7 +255,14 @@ def parse_numbered_vlm_payload(
             chosen = draft_text
             conf = round(max(0.45, min(0.76, draft_conf)), 4)
 
-        tokens = [RecognizedToken(text=piece, confidence=conf) for piece in chosen.split() if piece]
+        tokens = [
+            RecognizedToken(
+                text=piece,
+                confidence=_score_token_confidence(piece, base_conf=conf),
+            )
+            for piece in chosen.split()
+            if piece
+        ]
         results.append(RecognizedLine(text=" ".join(t.text for t in tokens), tokens=tokens))
     return results
 
@@ -533,6 +574,26 @@ class OllamaLineRecognizer:
                 or len(fixed.text) > max(40, int(len(orig.text) * 1.6))
             ):
                 merged.append(orig)
-            else:
-                merged.append(fixed)
+                continue
+
+            # Words agreed on by Pass 1 & Pass 2 get high confidence (0.91);
+            # words corrected by Pass 2 or still garbled stay flagged (<0.80) for quick Alt+N check.
+            orig_lower_set = {w.casefold() for w in orig_tokens}
+            scored_tokens = [
+                RecognizedToken(
+                    text=piece,
+                    confidence=_score_token_confidence(
+                        piece,
+                        base_conf=0.91,
+                        changed_by_proofread=piece.casefold() not in orig_lower_set,
+                    ),
+                )
+                for piece in fixed_tokens
+            ]
+            merged.append(
+                RecognizedLine(
+                    text=" ".join(t.text for t in scored_tokens),
+                    tokens=scored_tokens,
+                )
+            )
         return merged
