@@ -202,7 +202,7 @@ Powrót do pracy nad kodem: `pnpm qa:stop`, potem `pnpm dev`. Dane QA i DEV leż
 
 ---
 
-## Szybki scenariusz testowy dla Jury (2 minuty)
+## Scenariusz testowy
 
 Przykładowe wnioski z UM Bydgoszczy znajdują się w katalogu `docs/Przykładowe wnioski i odpowiedzi -20261121T114640Z-1-001/Przykładowe wnioski i odpowiedzi/`:
 
@@ -236,15 +236,18 @@ Jeśli `pnpm dev` albo `pnpm qa:up` zatrzyma się na `Bind for 127.0.0.1:8333 fa
 ```text
 PUBLIQ/
 ├── apps/
-│   ├── web/                  # Next.js (App Router), UI PUBLIQ, API, Baza Wiedzy, Gemma 4
-│   └── pyworker/             # FastAPI + Uvicorn (Port 8010) — OpenCV, RapidOCR, PII-Tracer
+│   ├── web/                  # Next.js (App Router), UI PUBLIQ, API, Baza Wiedzy
+│   └── pyworker/             # FastAPI + Uvicorn (port 8010) — OpenCV, RapidOCR, PII-Tracer
 ├── packages/
 │   ├── database/             # Prisma 7 + PostgreSQL (sprawy UDIP, graf Bazy Wiedzy, szablony)
 │   ├── queue/                # pg-boss (zadania w tle)
 │   └── monitoring/           # Monitoring dostępności usług
 ├── data/
-│   └── final_responses/      # Zanonimizowane odpowiedzi finalne cytowane przez Bazę Wiedzy i Gemma 4
-├── infra/local/              # Docker Compose (Postgres, Keycloak z motywem PUBLIQ, SeaweedFS, Nginx)
-├── docs/                     # Specyfikacja UDIP_COMPLETE_IDEA.md, akty prawne i przykładowe wnioski
-└── tests/                    # Testy automatyczne (web + pyworker)
+│   └── final_responses/      # Zanonimizowane odpowiedzi cytowane przez Bazę Wiedzy i Gemma 4
+├── infra/local/              # Docker Compose DEV i QA (Postgres, Keycloak, SeaweedFS, Nginx)
+├── scripts/                  # pnpm dev, pnpm qa:up, migracje, certyfikaty
+├── openspec/                 # Specyfikacje i zmiany (OpenSpec)
+├── docs/                     # UDIP_COMPLETE_IDEA.md, akty prawne i przykładowe wnioski
+├── images/                   # Ikona i logo PUBLIQ
+└── tests/                    # Testy web, pyworker, skryptów i infrastruktury
 ```
