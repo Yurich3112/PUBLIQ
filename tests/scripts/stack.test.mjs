@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
-import { initializeEnvironment } from '../../scripts/stack.mjs';
+import { initializeApplicationEnvironments, initializeEnvironment } from '../../scripts/stack.mjs';
 
 test('stack initialization generates independent credentials and preserves existing environments', async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'modulon-stack-'));
@@ -25,6 +25,23 @@ test('stack initialization generates independent credentials and preserves exist
   assert.equal(await initializeEnvironment(directory, 'dev'), false);
   assert.equal(await readFile(path.join(directory, '.env.dev'), 'utf8'), original);
   await assert.rejects(initializeEnvironment(directory, '../prod'), /Mode must/);
+});
+
+test('DEV init copies missing application env files and preserves existing ones', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'modulon-app-env-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const relatives = ['apps/web/.env', 'apps/pyworker/.env', 'packages/database/.env'];
+  for (const relative of relatives) {
+    const example = path.join(root, `${relative}.example`);
+    await mkdir(path.dirname(example), { recursive: true });
+    await writeFile(example, `# @file: ${relative}.example\nAPP_NAME=PUBLIQ\n`);
+  }
+  assert.deepEqual(await initializeApplicationEnvironments(root), relatives);
+  const web = path.join(root, 'apps/web/.env');
+  assert.match(await readFile(web, 'utf8'), /^# @file: apps\/web\/\.env$/m);
+  await writeFile(web, 'APP_NAME=kept\n');
+  assert.deepEqual(await initializeApplicationEnvironments(root), []);
+  assert.equal(await readFile(web, 'utf8'), 'APP_NAME=kept\n');
 });
 
 test('shipped env templates generate complete role-based configuration and random annotated secrets', async (t) => {

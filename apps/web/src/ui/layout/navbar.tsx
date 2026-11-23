@@ -27,18 +27,18 @@ export type NavbarProps = {
   className?: string;
 };
 
-export async function Navbar({ appName, locale, languageCookieName, cookieDomain = "", className }: NavbarProps) {
+export async function Navbar({ locale, languageCookieName, cookieDomain = "", className }: NavbarProps) {
   const t = await getTranslations({ locale, namespace: "common.navigation" });
   const auth = await getTranslations({ locale, namespace: "common.auth" });
   return (
     <NavbarFrame className={className}>
       <a href="#main-content" className={layoutStyles.skipLink}>{t("skipContent")}</a>
       <div data-navbar-main className={layoutStyles.navbarContent}>
-        <Link href="/" locale={locale} aria-label={appName} className={layoutStyles.brand}>
+        <Link href="/" locale={locale} aria-label={locale === "pl" ? "PUBLIQ — Asystent UDIP" : "PUBLIQ — UDIP Assistant"} className={layoutStyles.brand}>
           <Image src="/brand-icon.png" alt="" width={36} height={36} className="size-9 shrink-0 object-contain" />
           <span className="navbar-brand-name hidden flex-col leading-tight @min-[1024px]/navbar:inline-flex">
             <span className="text-sm font-bold tracking-tight text-foreground">PUBLIQ</span>
-            <span className="text-[10px] font-medium text-muted-foreground">UM Bydgoszcz · BKS</span>
+            <span className="text-[10px] font-medium text-muted-foreground">{locale === "pl" ? "Asystent UDIP" : "UDIP Assistant"}</span>
           </span>
         </Link>
         <Suspense fallback={<PrimaryNavigation />}><AuthorizedNavigation /></Suspense>

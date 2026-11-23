@@ -60,8 +60,10 @@ main(import.meta.url, async () => {
     console.log('Usage: pnpm validate:certs [--cert PATH] [--key PATH] [--ca PATH] [--host NAME] [--ip ADDRESS] [--min-days N]\nDefaults follow CERTS_DIR and TLS_* in infra/local/.env.dev, falling back to infra/local/certs/{localhost.pem,localhost-key.pem,rootCA.pem}, localhost and 127.0.0.1. Explicit hosts/IPs replace their defaults. Checks direct local CA signing, not OS/browser trust or revocation.');
     return;
   }
+  const configuredHosts = ['APP_HOST', 'WEB_HOST', 'AUTH_HOST', 'AUTH_ADMIN_HOST', 'S3_HOST', 'S3CONSOLE_HOST']
+    .map(key => env[key]).filter(host => host && host !== 'localhost');
   const expires = await validateCertificates({ cert: path.resolve(ROOT, values.cert), key: path.resolve(ROOT, values.key),
-    ca: path.resolve(ROOT, values.ca), hosts: values.host ?? ['localhost'], ips: values.ip ?? ['127.0.0.1'],
+    ca: path.resolve(ROOT, values.ca), hosts: values.host ?? ['localhost', ...configuredHosts], ips: values.ip ?? ['127.0.0.1'],
     minDays: Number(values['min-days']) });
   logStatus(`[ok] ${values.cert}: dates, private key (${values.key}), direct CA signature (${values.ca}) and requested SANs are valid. Expires: ${expires}`);
 });

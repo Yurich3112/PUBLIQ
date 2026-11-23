@@ -1,8 +1,8 @@
 {
   "home": {
-    "title": "Intelligent Clerk Assistant — UM Bydgoszcz (UDIP)",
-    "description": "Public information request calendar, handwritten OCR verifier, and BKS response generator for Bydgoszcz City Hall.",
-    "eyebrow": "City Hall of Bydgoszcz · BKS",
+    "title": "Intelligent Clerk Assistant (UDIP)",
+    "description": "Public information request calendar, handwritten OCR verifier, and response generator.",
+    "eyebrow": "UDIP Assistant",
     "about": "About the project",
     "team": "Meet the team",
     "capabilities": {

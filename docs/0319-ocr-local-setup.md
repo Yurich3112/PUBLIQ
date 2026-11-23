@@ -5,28 +5,28 @@ tags: [cookbook, ocr, ollama, gpu, gemma3, setup, development]
 
 # Local OCR Verifier Setup (GPU & CPU)
 
-This guide walks a developer from a fresh checkout of `feat/handwritten-ocr-verifier` to a fully working local browser session at `https://modulon.local/pl/ocr` using **100% local air-gapped OCR** (zero cloud API calls).
+This guide walks a developer from a fresh `main` checkout to a working browser session at `https://modulon.local/pl/ocr` using **100% local air-gapped OCR** (zero cloud API calls). The short path for a new clone is the [README](../README.md). This page is the model and OCR detail.
 
 ## 1. Prerequisites (Windows)
 
-- **Git**, **Node.js 22+**, **pnpm 10+**
-- **Python 3.12–3.14** (verified on Python 3.14; `pnpm pyworker:setup` creates an isolated `.venv`)
-- **Docker Desktop** (WSL2 backend; enable GPU support if using Docker for Ollama)
-- **`mkcert`** (`winget install FiloSottile.mkcert` or `choco install mkcert`)
-- **Ollama** (either [native Ollama for Windows](https://ollama.com/download/windows) — easiest on an NVIDIA RTX 3080 laptop — or Docker `ollama/ollama`)
+- **Git**, **Node.js 22.18+**, **pnpm 12.15.0** (the version in the root `package.json`)
+- **Python 3.12–3.14** (`pnpm dev` creates an isolated `.venv`)
+- **Docker Desktop** running (WSL2 backend). Docker hosts PostgreSQL, Keycloak, SeaweedFS and Nginx. It does not host Gemma.
+- **`mkcert`** (`winget install FiloSottile.mkcert`)
+- **Native [Ollama for Windows](https://ollama.com/download/windows)** (`winget install -e --id Ollama.Ollama`)
 
-## 2. Clone Branch & Install Workspace Dependencies
+Use native Ollama on Windows. The `ollama/ollama` container cannot see an AMD integrated GPU, and on a 16 GB laptop it also competes with the application containers for RAM. Native Ollama uses Vulkan, offloads what fits, and runs the rest on CPU. NVIDIA laptops can stay on the same native install.
 
-Run from a PowerShell terminal in the repository root (note: **never** run `mkcert` or `pnpm` from `C:\WINDOWS\system32`):
+## 2. Install workspace dependencies
+
+Run from a PowerShell terminal in the repository root (never from `C:\WINDOWS\system32`):
 
 ```powershell
-git fetch origin
-git checkout feat/handwritten-ocr-verifier
-pnpm install
-pnpm pyworker:setup
+pnpm install --frozen-lockfile
+pnpm stack:init
 ```
 
-`pnpm pyworker:setup` creates `apps/pyworker/.venv`, installs hash-verified binary wheels (`opencv-python-headless`, `pypdfium2`, `pillow`, `onnxruntime`, `rapidocr`, `fastapi`, `uvicorn`), and generates the shared private `PYWORKER_API_TOKEN` across `apps/pyworker/.env` and `apps/web/.env`.
+`pnpm dev` later creates `apps/pyworker/.venv`, installs hash-verified wheels, and replaces the placeholder `PYWORKER_API_TOKEN` in both `apps/pyworker/.env` and `apps/web/.env` with one shared private token. `apps/web/.env` must already exist, which `stack:init` guarantees.
 
 ## 3. Hosts File & Local HTTPS Certificates
 
@@ -52,41 +52,35 @@ pnpm validate:certs --host localhost --host modulon.local --host web.modulon.loc
   --ip 127.0.0.1 --ip ::1
 ```
 
-## 4. Start Local Ollama & Pull Gemma 3
+## 4. Pull Gemma 4
 
 > **Why Ollama (not vLLM)?**
-> On Windows laptops (especially 8 GB vs 16 GB RTX 3080 variants) and UM Bydgoszcz BKS traffic (~800 UDIP requests/year ≈ 3/day), Ollama runs natively or in Docker, handles GPU+RAM layer offloading automatically without CUDA OOM crashes, and swaps models on demand. vLLM is Linux-only and only pays off at high multi-user concurrency on 24–80 GB datacenter GPUs.
+> BKS traffic is about 800 UDIP requests/year. Ollama runs on a Windows laptop, offloads layers to Vulkan (AMD) or CUDA (NVIDIA), and spills the rest to RAM. vLLM is Linux-only and pays off at high concurrency on large datacenter GPUs.
 
-### Option A — NVIDIA RTX 3080 Laptop / Dedicated GPU (Recommended: `gemma3:12b`)
+The application defaults are `gemma4:e4b` with fallback `gemma4:e2b`. Current Ollama library sizes:
 
-- **Using native Ollama for Windows (recommended on GPU laptops — auto-detects CUDA):**
-  1. Install and launch Ollama for Windows (listens on `http://127.0.0.1:11434`).
-  2. Pull the 12B multimodal model (~8.1 GB; fits 100% in 16 GB VRAM for **~3–6 s/scan**, or ~85% in 8 GB VRAM with automatic RAM spill for **~10–15 s/scan**):
-     ```powershell
-     ollama pull gemma3:12b
-     ```
-     *(Optional alternative: `ollama pull gemma3:12b-it-qat` — Google's quantization-aware 4-bit build, same ~8.1 GB footprint.)*
-
-- **Or using Docker with NVIDIA GPU passthrough:**
-  ```powershell
-  docker run -d --name modulon-ollama --gpus all --restart unless-stopped `
-    -p 127.0.0.1:11434:11434 -v modulon_ollama:/root/.ollama ollama/ollama
-  docker exec modulon-ollama ollama pull gemma3:12b
-  ```
-
-### Option B — CPU-Only Laptop (16 GB RAM, no NVIDIA GPU: `gemma3:4b`)
+| Tag | Download | Use |
+| :--- | :--- | :--- |
+| `gemma4:e4b` | ~6.6–9.5 GB | Default. OCR, JSON summaries, BKS drafts. |
+| `gemma4:e2b` | ~4.6–7.5 GB | 16 GB RAM when E4B plus Docker starts swapping. |
 
 ```powershell
-docker run -d --name modulon-ollama --restart unless-stopped `
-  -p 127.0.0.1:11434:11434 -v modulon_ollama:/root/.ollama ollama/ollama
-docker exec modulon-ollama ollama pull gemma3:4b
-```
-
-Verify Ollama is reachable from the host before starting the stack:
-
-```powershell
+ollama pull gemma4:e4b
+ollama pull gemma4:e2b
 Invoke-RestMethod http://127.0.0.1:11434/api/tags | ConvertTo-Json -Depth 3
 ```
+
+An AMD Radeon iGPU shares system RAM and usually reports well under 2 GB of dedicated VRAM. Ollama sees it through Vulkan, then **drops it unless `OLLAMA_IGPU_ENABLE=1`**. Set that user variable and restart Ollama:
+
+```powershell
+[Environment]::SetEnvironmentVariable("OLLAMA_IGPU_ENABLE", "1", "User")
+Get-Process ollama -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Process "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+```
+
+The server log line `dropping integrated GPU` means the variable is missing. After a restart, `ollama ps` during a generation should show `Vulkan` for `AMD Radeon(TM) Graphics`. Layers that do not fit shared memory still run on CPU. Do not switch the Windows install to the Docker Ollama image to enable the GPU — that image cannot see the iGPU.
+
+On a 16 GB machine that swaps, set `PYWORKER_OCR_VLM_MODEL=gemma4:e2b` and `PYWORKER_OCR_VLM_FALLBACK_MODEL=gemma4:e2b`, and uncomment `UDIP_PLLUM_MODEL=gemma4:e2b` plus `UDIP_LLM_FALLBACK_MODEL=gemma4:e2b` in `apps/web/.env`. Restart `pnpm dev` after env edits.
 
 ## 5. Configure Local Environment Files
 
@@ -96,8 +90,8 @@ Initialize stack secrets if you haven't yet (`pnpm stack:init`), then verify the
 
 ```env
 PYWORKER_OLLAMA_URL=http://127.0.0.1:11434
-# Use gemma3:12b on RTX 3080 GPU, or gemma3:4b on CPU-only laptops:
-PYWORKER_OCR_VLM_MODEL=gemma3:12b
+PYWORKER_OCR_VLM_MODEL=gemma4:e4b
+PYWORKER_OCR_VLM_FALLBACK_MODEL=gemma4:e2b
 PYWORKER_OCR_TIMEOUT_SECONDS=240
 PYWORKER_OCR_MAX_BYTES=20971520
 PYWORKER_OCR_MAX_PAGES=10

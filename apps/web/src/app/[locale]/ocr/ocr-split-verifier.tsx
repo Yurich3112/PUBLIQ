@@ -588,7 +588,7 @@ export function OcrSplitVerifier({
                 rows={6}
                 value={pastedText}
                 onChange={e => setPastedText(e.target.value)}
-                placeholder="Np. Wnoszę o udostępnienie informacji publicznej dotyczącej liczby uczniów cudzoziemców w szkołach podstawowych w Bydgoszczy..."
+                placeholder="Np. Wnoszę o udostępnienie informacji publicznej dotyczącej liczby uczniów cudzoziemców w szkołach podstawowych..."
                 className="w-full rounded-lg border border-input-border bg-input p-3 text-xs text-input-foreground"
               />
               <div className="flex justify-end">

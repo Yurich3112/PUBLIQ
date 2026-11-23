@@ -12,17 +12,17 @@ export type FooterProps = {
   className?: string;
 };
 
-export async function Footer({ appName, companyName, locale, className }: FooterProps) {
+export async function Footer({ locale, className }: FooterProps) {
   const polish = locale === "pl";
   return (
     <footer data-shell-footer className={cx(layoutStyles.footer, className)}>
       <div className={layoutStyles.footerContent}>
         <div className={layoutStyles.footerIdentity}>
           <SystemStatus />
-          <span className="font-semibold">{polish ? "PUBLIQ · UM Bydgoszcz" : appName}</span>
+          <span className="font-semibold">PUBLIQ</span>
           <span aria-hidden="true" className={layoutStyles.footerSeparator}>•</span>
           <span className="text-muted-foreground">
-            {polish ? "Biuro Komunikacji Społecznej (Zarządzenie nr 535/2024)" : companyName}
+            {polish ? "Biuro Komunikacji Społecznej (Zarządzenie nr 535/2024)" : "Public Communication Office"}
           </span>
         </div>
         <div className={layoutStyles.footerActions}>

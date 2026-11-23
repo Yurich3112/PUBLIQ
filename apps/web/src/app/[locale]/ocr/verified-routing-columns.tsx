@@ -248,7 +248,7 @@ export function VerifiedRoutingColumns({
                     </div>
                     <p className="text-amber-900/90 dark:text-amber-200/90">
                       {matchResult.externalAuthorityHint?.legalBasis ??
-                        "Art. 4 ust. 3 UDIP — Urząd Miasta Bydgoszczy nie jest dysponentem danych."}
+                        "Art. 4 ust. 3 UDIP — urząd nie jest dysponentem danych."}
                     </p>
                   </div>
                   <Button
@@ -260,14 +260,14 @@ export function VerifiedRoutingColumns({
                       setRightMode("select");
                     }}
                   >
-                    AI się myli — wybierz wydziały UM Bydgoszcz
+                    AI się myli — wybierz wydziały
                   </Button>
                 </>
               ) : (
                 <>
                   {matchResult.scenario === "EXTERNAL_INSTITUTION" && overrideExternal ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-950 dark:text-blue-100">
-                      <span className="font-semibold">Nadpisano: sprawa wewnętrzna UM Bydgoszcz</span>
+                      <span className="font-semibold">Nadpisano: sprawa wewnętrzna</span>
                       <button
                         type="button"
                         onClick={() => {

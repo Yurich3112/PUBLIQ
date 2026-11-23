@@ -43,12 +43,13 @@ export function secondaryNavigation(pathname: string, allowAdmin: boolean): { la
   return null;
 }
 
-export type BreadcrumbRoute = { label: "home" | "calendar" | "caseDetail" | "about" | "team" | "chat" | "ocr" | "admin" | "knowledge" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/kalendarz" | "/about" | "/chat" | "/ocr" | "/admin" | "/admin/knowledge" | "/test" | "/admin/products" };
+export type BreadcrumbRoute = { label: "home" | "calendar" | "caseDetail" | "about" | "team" | "chat" | "ocr" | "ocrShow" | "admin" | "knowledge" | "users" | "files" | "products" | "tags" | "queue" | "settings" | "monitoring" | "createProduct" | "gallery" | "accessDenied" | "llm"; href?: "/" | "/kalendarz" | "/about" | "/chat" | "/ocr" | "/admin" | "/admin/knowledge" | "/test" | "/admin/products" };
 export function pageBreadcrumbs(pathname: string): BreadcrumbRoute[] {
   const path = normalizeNavigationPath(pathname);
   if (path === "/kalendarz") return [{ label: "home", href: "/" }, { label: "calendar" }];
   if (path.startsWith("/sprawy/")) return [{ label: "home", href: "/" }, { label: "calendar", href: "/kalendarz" }, { label: "caseDetail" }];
   if (path === "/ocr") return [{ label: "home", href: "/" }, { label: "ocr" }];
+  if (path === "/ocr/pokaz") return [{ label: "home", href: "/" }, { label: "ocr", href: "/ocr" }, { label: "ocrShow" }];
   if (path === "/admin/knowledge") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "knowledge" }];
   if (path === "/admin/monitoring") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "monitoring" }];
   if (path === "/admin/users") return [{ label: "home", href: "/" }, { label: "admin", href: "/admin/knowledge" }, { label: "users" }];

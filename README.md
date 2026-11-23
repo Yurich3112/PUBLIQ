@@ -6,9 +6,6 @@
 
 **PUBLIQ** to przeglądarkowa (bez instalacji `.exe`) aplikacja intranetowa, która skraca obsługę wniosków o udostępnienie informacji publicznej (UDIP) z wielu dni do kilku minut — przy zachowaniu **100% lokalnego działania offline (air-gapped)** na otwartowagowych modelach **Gemma 4 (Apache 2.0)**.
 
----
-VIDEO https://fex.net/uk/s/0moamz3
-
 ## Co potrafi PUBLIQ?
 
 1. **Kokpit Urzędnika (`/`) i Kalendarz Wniosków (`/kalendarz`)**
@@ -18,6 +15,7 @@ VIDEO https://fex.net/uk/s/0moamz3
 2. **Obsługa wniosków PDF i Word (`.docx`) + Weryfikator OCR 1:1 (`/ocr`)**
    - **Pliki Word (`.docx`)**: natychmiastowa ekstrakcja czystego tekstu z `word/document.xml` (bez obrazków i zbędnego formatowania) i bezpośrednie przejście do 3-kolumnowego ekranu rutowania i generowania odpowiedzi.
    - **Skany PDF i pismo ręczne**: usuwanie kratki zeszytowej (OpenCV), podgląd 1:1 skanu z ramkami słów obok edytowalnej transkrypcji, czerwone oznaczenia słów do weryfikacji, cofanie `Ctrl+Z`, usuwanie artefaktów oraz 1-klikowe *Wezwanie do doprecyzowania (7 dni)* dla nieczytelnych skanów.
+   - **Jak działa odczyt (`/ocr/pokaz`)**: spowolnione odtworzenie przebiegu na skanie — kratka, ramki słów, pierwszy odczyt obrazu i druga korekta całego pisma.
 3. **Baza Wiedzy, 4 scenariusze UDIP i archiwum finalnych odpowiedzi (`data/final_responses/`)**
    - Natychmiastowe dopasowanie spraw bliźniaczych z 2025/2026 r., automatyczna pre-selekcja top 1–2 wydziałów UM Bydgoszczy, obsługa trybu **`Nasz dział (BKS)`** (odpowiadamy sami bez wysyłania zapytań) oraz przekierowania do podmiotów zewnętrznych (Art. 4 ust. 3 UDIP — ZUS, ZDMiKP, WKZ) z przyciskiem **`AI się myli`** do nadpisania decyzji modelu.
    - Katalog **`data/final_responses/`** przechowuje zanonimizowane odpowiedzi finalne cytowane przez rekordy JSON i przekazywane do Gemma 4 jako wzorzec stylu i podstaw prawnych.
@@ -34,81 +32,86 @@ VIDEO https://fex.net/uk/s/0moamz3
 
 | Zadanie | Model / Narzędzie | Zasoby | Licencja |
 | :--- | :--- | :--- | :--- |
-| **OCR pisma ręcznego, streszczenia JSON, projekty pism** | **`Gemma 4 E4B`** (`gemma4:e4b` przez Ollama) | ~3–5 GB (GPU / CPU) | Apache 2.0 |
-| **Lekki tryb awaryjny (stacje CPU)** | **`Gemma 4 E2B`** (`gemma4:e2b` przez Ollama) | ~1.5–2.5 GB RAM (CPU) | Apache 2.0 |
+| **OCR pisma ręcznego, streszczenia JSON, projekty pism** | **`Gemma 4 E4B`** (`gemma4:e4b` przez Ollama) | pobranie ~6,6–9,5 GB | Apache 2.0 |
+| **Lekki tryb awaryjny (16 GB RAM / samo CPU)** | **`Gemma 4 E2B`** (`gemma4:e2b` przez Ollama) | pobranie ~4,6–7,5 GB | Apache 2.0 |
 | **Usuwanie kratki, ramki słów 1:1 i detekcja PII** | OpenCV + RapidOCR (ONNX) + `PII-Tracer` + Reguły BKS | ~1.2 GB RAM (CPU) | Open-Source |
 
 > **Tryb awaryjny bez GPU / bez Ollamy:** Jeśli Ollama nie jest uruchomiona, aplikacja działa w 100% stabilnie — dostępne są szablony BKS, ekstrakcja Word/PDF, dopasowanie w Bazie Wiedzy i anonimizacja PII.
 
 ---
 
-## Instalacja krok po kroku (dla każdego — od zera w 5 minut)
+## Instalacja krok po kroku
 
-### Krok 0: Zainstaluj 5 darmowych programów (jeśli jeszcze ich nie masz)
+Pierwsze uruchomienie pobiera obrazy Dockera i wagi Gemma 4. Na typowym laptopie zajmie to **15–40 minut**, nie pięć. Kolejne `pnpm dev` startuje z cache.
+
+### Krok 0: Zainstaluj darmowe programy (jeśli jeszcze ich nie masz)
 
 | Program | Wersja | Skąd pobrać |
 | :--- | :--- | :--- |
 | **Git** | najnowsza | https://git-scm.com/downloads |
-| **Node.js** | **24.x** (LTS) | https://nodejs.org |
-| **pnpm** | **12.x** | W terminalu: `corepack enable && corepack prepare pnpm@12.15.0 --activate` |
+| **Node.js** | **22.18+** (działa 24 LTS i 26) | https://nodejs.org |
+| **pnpm** | **dokładnie 12.15.0** | `corepack enable` potem `corepack prepare pnpm@12.15.0 --activate` |
 | **Python** | **3.12 – 3.14** | https://www.python.org/downloads/ *(na Windows zaznacz „Add Python to PATH”)* |
-| **Docker Desktop** | najnowsza | https://www.docker.com/products/docker-desktop/ *(uruchom go przed startem!)* |
+| **Docker Desktop** | najnowsza | https://www.docker.com/products/docker-desktop/ *(musi być uruchomiony przed `pnpm dev`)* |
 | **mkcert** *(lokalne HTTPS)* | najnowsza | Windows: `winget install FiloSottile.mkcert` · macOS: `brew install mkcert` |
+| **Ollama** *(Gemma 4)* | najnowsza | Windows: `winget install -e --id Ollama.Ollama` · https://ollama.com/download |
 
 ---
 
 ### Krok 1: Pobierz kod i zainstaluj pakiety
 
-Otwórz terminal (PowerShell na Windows lub Terminal na macOS/Linux):
+Otwórz terminal w zwykłym katalogu użytkownika (nie w `C:\Windows\System32`):
 
 ```bash
-git clone https://github.com/Yurich3112/asystent_hacknation2026_FFF.git
-cd asystent_hacknation2026_FFF
+git clone https://github.com/Yurich3112/PUBLIQ.git
+cd PUBLIQ
 pnpm install --frozen-lockfile
 ```
 
 ---
 
-### Krok 2: Dodaj lokalny adres `modulon.local` do pliku `hosts`
+### Krok 2: Dodaj lokalne adresy do pliku `hosts`
 
-Dzięki temu aplikacja i logowanie Keycloak będą działały pod bezpiecznym adresem `https://modulon.local`.
+Pomiń ten krok, jeśli te nazwy już tam są. Inaczej logowanie Keycloak i S3 nie otworzą się w przeglądarce.
 
-- **Windows** — uruchom PowerShell **jako Administrator** i wklej:
+- **Windows** — PowerShell **jako Administrator**:
   ```powershell
-  Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 modulon.local auth.modulon.local s3.modulon.local s3console.modulon.local"
+  Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 modulon.local web.modulon.local auth.modulon.local authconsole.modulon.local s3.modulon.local s3console.modulon.local"
   ```
-- **macOS / Linux** — uruchom w terminalu:
+- **macOS / Linux**:
   ```bash
-  echo "127.0.0.1 modulon.local auth.modulon.local s3.modulon.local s3console.modulon.local" | sudo tee -a /etc/hosts
+  echo "127.0.0.1 modulon.local web.modulon.local auth.modulon.local authconsole.modulon.local s3.modulon.local s3console.modulon.local" | sudo tee -a /etc/hosts
   ```
 
 ---
 
 ### Krok 3: Wygeneruj zaufany certyfikat HTTPS (`mkcert`)
 
-W głównym katalogu projektu uruchom:
+Nazwy plików muszą być dokładnie `localhost.pem`, `localhost-key.pem` i `rootCA.pem`. Inne nazwy odrzuca `pnpm validate:certs`.
 
-```bash
+**Windows (PowerShell, katalog główny repozytorium):**
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\infra\local\certs | Out-Null
 mkcert -install
-mkdir -p infra/local/certs
-mkcert -cert-file infra/local/certs/modulon.local.crt -key-file infra/local/certs/modulon.local.key modulon.local "*.modulon.local" localhost 127.0.0.1
+mkcert -cert-file .\infra\local\certs\localhost.pem -key-file .\infra\local\certs\localhost-key.pem localhost 127.0.0.1 ::1 modulon.local "*.modulon.local"
+Copy-Item -LiteralPath (Join-Path (mkcert -CAROOT) "rootCA.pem") -Destination .\infra\local\certs\rootCA.pem
 ```
 
-Skopiuj certyfikat CA do `infra/local/certs/rootCA.pem`:
-- **Windows (PowerShell):**
-  ```powershell
-  Copy-Item "$(mkcert -CAROOT)\rootCA.pem" "infra\local\certs\rootCA.pem"
-  ```
-- **macOS / Linux:**
-  ```bash
-  cp "$(mkcert -CAROOT)/rootCA.pem" infra/local/certs/rootCA.pem
-  ```
+**macOS / Linux:**
+
+```bash
+mkdir -p infra/local/certs
+mkcert -install
+mkcert -cert-file infra/local/certs/localhost.pem -key-file infra/local/certs/localhost-key.pem localhost 127.0.0.1 ::1 modulon.local "*.modulon.local"
+cp "$(mkcert -CAROOT)/rootCA.pem" infra/local/certs/rootCA.pem
+```
+
+`mkcert -install` może poprosić o uprawnienia administratora. To jednorazowe zaufanie lokalnego CA w systemie.
 
 ---
 
-### Krok 4: Automatycznie utwórz pliki konfiguracyjne `.env`
-
-Jedna komenda wygeneruje wszystkie wymagane pliki `.env` (`apps/web/.env`, `apps/pyworker/.env`, `packages/database/.env`, `infra/local/.env.dev`) z losowymi hasłami:
+### Krok 4: Utwórz pliki `.env`
 
 ```bash
 pnpm stack:init
@@ -116,40 +119,86 @@ pnpm validate:dev
 pnpm validate:certs
 ```
 
-Wszystkie 3 komendy powinny zakończyć się statusem `[ok]`.
+`stack:init` tworzy brakujące `infra/local/.env.dev`, `apps/web/.env`, `apps/pyworker/.env` i `packages/database/.env`. Istniejących plików nie nadpisuje. Wszystkie trzy komendy powinny zakończyć się `[ok]`.
+
+Lokalne hasła w przykładach są celowo słabe i takie same między plikami, żeby świeży klon wstał bez ręcznego przepisywania sekretów. Przed jakimkolwiek wystawieniem poza własny laptop wygeneruj własne hasła i podmień je w obu stronach (aplikacja i `infra/local/.env.dev`).
 
 ---
 
-### Krok 5: (Opcjonalnie) Uruchom lokalny model AI **Gemma 4** w Ollamie
+### Krok 5: Pobierz **Gemma 4** do natywnej Ollamy
 
-Jeśli chcesz testować generowanie odpowiedzi i OCR pisma ręcznego przez lokalny model Gemma 4:
+Aplikacja woła model pod `http://127.0.0.1:11434`. Na Windows zainstaluj **natywną Ollamę**, nie kontener `ollama/ollama`.
 
-```bash
-docker run -d --name modulon-ollama -p 11434:11434 -v ollama:/root/.ollama ollama/ollama
-docker exec -it modulon-ollama ollama pull gemma4:e4b
-# (opcjonalnie na słabszy komputer bez GPU):
-docker exec -it modulon-ollama ollama pull gemma4:e2b
+Kontener Dockera na Windowsie nie widzi zintegrowanej karty AMD. Natywna Ollama używa Vulkan. Dedykowana NVIDIA działa w tej samej aplikacji natywnej. Ollama **domyślnie wyłącza iGPU**. Na Radeonie zintegrowanym włącz go raz, dla bieżącego użytkownika, i zrestartuj Ollamę:
+
+```powershell
+[Environment]::SetEnvironmentVariable("OLLAMA_IGPU_ENABLE", "1", "User")
+Get-Process ollama -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Process "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
 ```
 
+Bez tej zmiennej log Ollamy zawiera `dropping integrated GPU` i cały model idzie na CPU. Po restarcie `ollama ps` w trakcie generowania powinno pokazać bibliotekę `Vulkan`, nie samo `cpu`.
+
+Po instalacji zamknij i otwórz terminal, żeby `ollama` było w `PATH`:
+
+```bash
+ollama pull gemma4:e4b
+ollama pull gemma4:e2b
+```
+
+`gemma4:e4b` to model domyślny (OCR, streszczenia, projekty pism). `gemma4:e2b` jest awaryjny. Na laptopie z **16 GB RAM** E4B razem z Dockerem, przeglądarką i Node może wymusić swap. Jeśli system zaczyna mielić dyskiem, w `apps/pyworker/.env` ustaw `PYWORKER_OCR_VLM_MODEL=gemma4:e2b` i `PYWORKER_OCR_VLM_FALLBACK_MODEL=gemma4:e2b`, a w `apps/web/.env` odkomentuj:
+
+```env
+UDIP_PLLUM_URL=http://127.0.0.1:11434
+UDIP_PLLUM_MODEL=gemma4:e2b
+UDIP_LLM_FALLBACK_MODEL=gemma4:e2b
+```
+
+Potem zrestartuj `pnpm dev`. Sprawdzenie, że Ollama żyje:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
+```
+
+Bez Ollamy aplikacja dalej wstaje: szablony BKS, Word/PDF, baza wiedzy i anonimizacja PII działają. Generowanie AI i OCR pisma ręcznego czekają, aż model będzie dostępny.
+
 ---
 
-### Krok 6: Uruchom całą aplikację jedną komendą!
+### Krok 6: Uruchom całą aplikację
 
-Upewnij się, że **Docker Desktop jest uruchomiony**, a następnie wpisz:
+Docker Desktop musi być uruchomiony.
 
 ```bash
 pnpm dev
 ```
 
-Skrypt automatycznie:
-1. Zbuduje i uruchomi kontenery PostgreSQL 18, Keycloak (z motywem **PUBLIQ**), SeaweedFS (S3) i Nginx.
-2. Przygotuje środowisko Python (`.venv`) dla `pyworker` (OCR + PII).
-3. Wykona migracje bazy danych i zasieje **10 przykładowych spraw UM Bydgoszczy** oraz Bazę Wiedzy.
-4. Uruchomi aplikację webową Next.js + worker Pythona + kolejkę `pg-boss`.
+Skrypt:
+1. Sprawdza Node, pnpm 12.15.0, Dockera, Pythona, `.env` i certyfikat.
+2. Buduje i uruchamia PostgreSQL 18, Keycloak (motyw **PUBLIQ**), SeaweedFS, konsolę S3 i Nginx.
+3. Tworzy `.venv` Pythona i instaluje zahashowane koła (OpenCV, RapidOCR, FastAPI).
+4. Wykonuje migracje i zasiewa przykładowe sprawy oraz bazę wiedzy.
+5. Uruchamia Next.js, worker Pythona i kolejkę `pg-boss`.
 
-Gdy zobaczysz w logach gotowość serwerów, otwórz w przeglądarce:
+To polecenie zostaje na pierwszym planie. Gdy w logach widać gotowość serwerów, otwórz:
 
 👉 **https://modulon.local**
+
+Zatrzymanie hosta: `Ctrl+C` (kontenery zostają). Cały stos w dół, z zachowaniem danych: `pnpm dev:stop`.
+
+---
+
+### Gotowa wersja w kontenerach
+
+`pnpm dev` kompiluje stronę przy każdym wejściu. Do pokazu i zwykłej pracy uruchom zbudowaną wersję. Cała aplikacja jest wtedy w kontenerach, bez trybu deweloperskiego:
+
+```bash
+pnpm dev:stop
+pnpm qa:up
+```
+
+Adres zostaje ten sam: **https://modulon.local**. Startują strona, kolejka, worker Pythona, baza, logowanie, pliki i proxy. Strony są już zbudowane, więc wejście na nie nie uruchamia kompilacji. Gemma 4 zostaje w Ollamie na tym komputerze; worker sięga do niej pod `host.docker.internal:11434`.
+
+Powrót do pracy nad kodem: `pnpm qa:stop`, potem `pnpm dev`. Dane QA i DEV leżą w osobnych wolumenach.
 
 ---
 
@@ -169,19 +218,23 @@ Przykładowe wnioski z UM Bydgoszczy znajdują się w katalogu `docs/Przykładow
 
 | Komenda | Co robi |
 | :--- | :--- |
-| `pnpm dev` | Uruchamia cały projekt w trybie DEV |
-| `pnpm dev:stop` | Zatrzymuje aplikację i kontenery Docker (zachowuje dane w bazie) |
+| `pnpm dev` | Uruchamia cały projekt w trybie DEV (strony kompilują się przy wejściu) |
+| `pnpm dev:stop` | Zatrzymuje aplikację i kontenery DEV (zachowuje dane w bazie) |
+| `pnpm qa:up` | Buduje i uruchamia gotową wersję w kontenerach |
+| `pnpm qa:stop` | Zatrzymuje kontenery QA (zachowuje dane) |
 | `pnpm dev:rebuild:docker` | Przebudowuje obrazy Dockera (np. po zmianie motywu logowania Keycloak) |
 | `pnpm dev:doctor` | Diagnozuje porty, certyfikaty, `.env`, bazę danych i kontenery |
 | `pnpm --filter ./apps/web run lint` | Sprawdza jakość kodu ESLint |
-| `pnpm --filter ./apps/web run test` | Uruchamia 192 testy automatyczne aplikacji webowej |
+| `pnpm --filter ./apps/web run test` | Uruchamia testy automatyczne aplikacji webowej |
+
+Jeśli `pnpm dev` albo `pnpm qa:up` zatrzyma się na `Bind for 127.0.0.1:8333 failed: port is already allocated` (albo na 5432, 443, 8080, 8090), drugi stos DEV/QA tego projektu zajmuje te same porty. Zatrzymaj go bez kasowania danych (`pnpm dev:stop` albo `pnpm qa:stop`) i uruchom ponownie. Nie używaj `docker volume rm` ani `down --volumes`.
 
 ---
 
 ## Struktura repozytorium
 
 ```text
-asystent_hacknation2026_FFF/
+PUBLIQ/
 ├── apps/
 │   ├── web/                  # Next.js (App Router), UI PUBLIQ, API, Baza Wiedzy, Gemma 4
 │   └── pyworker/             # FastAPI + Uvicorn (Port 8010) — OpenCV, RapidOCR, PII-Tracer

@@ -44,7 +44,7 @@ class Settings:
     ollama_url: str = "http://127.0.0.1:11434"
     ocr_vlm_model: str = "gemma4:e4b"
     ocr_vlm_fallback_model: str = "gemma4:e2b"
-    ocr_timeout: int = 120
+    ocr_timeout: int = 240
     ocr_max_bytes: int = 20 * 1024 * 1024
     ocr_max_pages: int = 10
     ocr_low_confidence_threshold: float = 0.80
@@ -143,7 +143,7 @@ class Settings:
             ollama_url=values.get("PYWORKER_OLLAMA_URL", "http://127.0.0.1:11434"),
             ocr_vlm_model=values.get("PYWORKER_OCR_VLM_MODEL", "gemma4:e4b"),
             ocr_vlm_fallback_model=values.get("PYWORKER_OCR_VLM_FALLBACK_MODEL", "gemma4:e2b"),
-            ocr_timeout=integer("PYWORKER_OCR_TIMEOUT_SECONDS", 120, 5, 300, max_len=6),
+            ocr_timeout=integer("PYWORKER_OCR_TIMEOUT_SECONDS", 240, 5, 300, max_len=6),
             ocr_max_bytes=integer("PYWORKER_OCR_MAX_BYTES", 20 * 1024 * 1024, 65_536, 33_554_432),
             ocr_max_pages=integer("PYWORKER_OCR_MAX_PAGES", 10, 1, 25, max_len=6),
             ocr_low_confidence_threshold=floating(

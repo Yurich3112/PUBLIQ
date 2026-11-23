@@ -72,7 +72,7 @@
       "previewTemplate": "Preview template",
       "hideTemplate": "Hide template",
       "copyTemplate": "Copy reference draft",
-      "departmentsLabel": "Suggested UM Bydgoszcz departments (confirm to track replies)",
+      "departmentsLabel": "Suggested departments (confirm to track replies)",
       "applicantLabel": "Applicant",
       "subjectLabel": "Request subject (for Calendar table)",
       "saveToCalendar": "Save Case to Calendar",
@@ -89,18 +89,18 @@
           "hint": "Use the archived reference response template below as the basis for your draft reply."
         },
         "EXTERNAL_INSTITUTION": {
-          "title": "Scenario 3: External authority — UM Bydgoszcz is not data holder (Art. 4(3) UDIP)",
+          "title": "Scenario 3: External authority — this office is not the data holder (Art. 4(3) UDIP)",
           "hint": "Copy the suggested redirect draft (sent outside the app) and register the case in the calendar."
         },
         "OTHER_INTERNAL_DEPARTMENT": {
-          "title": "Scenario 4: Requires input from other UM Bydgoszcz department(s)",
+          "title": "Scenario 4: Requires input from other department(s)",
           "hint": "Confirm the suggested departments below and save — the calendar tracks 🔴 Pending / 🟢 Replied statuses."
         }
       }
     },
     "clarification": {
       "title": "7-Day Request Clarification Notice",
-      "subtitle": "Ready-to-edit BKS UM Bydgoszcz clarification draft for illegible scans.",
+      "subtitle": "Ready-to-edit clarification draft for illegible scans.",
       "editorLabel": "Clarification notice draft text",
       "copy": "Copy text",
       "copied": "Copied",

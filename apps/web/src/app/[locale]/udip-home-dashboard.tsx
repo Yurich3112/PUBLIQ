@@ -169,7 +169,7 @@ export function UdipHomeDashboard({
 
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {polish ? "Urząd Miasta Bydgoszczy · BKS" : "City Hall of Bydgoszcz · BKS"}
+                  {polish ? "Asystent UDIP" : "UDIP Assistant"}
                 </p>
                 <h1 className="text-3xl font-bold tracking-tight text-foreground sm:whitespace-nowrap sm:text-4xl">
                   {polish ? "PUBLIQ - Asystent UDIP" : "PUBLIQ - UDIP Assistant"}
@@ -226,13 +226,22 @@ export function UdipHomeDashboard({
                   ? "Zaloguj się w prawym górnym rogu, aby rozpocząć."
                   : "Sign in in the top-right corner to continue."}
               </span>
-              <Link
-                href="/about"
-                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
-              >
-                {polish ? "O systemie" : "About the system"}
-                <ArrowRight aria-hidden="true" className="size-3" />
-              </Link>
+              <span className="inline-flex items-center gap-3">
+                <Link
+                  href="/ocr/pokaz"
+                  className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                >
+                  {polish ? "Jak działa OCR" : "How OCR works"}
+                  <ArrowRight aria-hidden="true" className="size-3" />
+                </Link>
+                <Link
+                  href="/about"
+                  className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                >
+                  {polish ? "O systemie" : "About the system"}
+                  <ArrowRight aria-hidden="true" className="size-3" />
+                </Link>
+              </span>
             </div>
           </div>
         </div>
@@ -259,6 +268,10 @@ export function UdipHomeDashboard({
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {polish ? `Dzień dobry, ${greetingName}` : `Good morning, ${greetingName}`}
           </h1>
+          <Link href="/ocr/pokaz" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+            {polish ? "Jak działa OCR — pokaż na żywo" : "How OCR works — play it"}
+            <ArrowRight aria-hidden="true" className="size-3" />
+          </Link>
           <p className="text-xs text-muted-foreground sm:text-sm">
             {loading
               ? polish ? "Sprawdzanie bieżących terminów UDIP…" : "Checking today's UDIP deadlines…"

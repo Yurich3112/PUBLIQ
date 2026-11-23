@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: LayoutProps<"/[locale]">): Pr
   if (!isAppLocale(locale)) notFound();
   const t = await getTranslations({ locale, namespace: "home" });
   return {
-    title: getPublicConfig().APP_NAME,
+    title: getPublicConfig().APP_NAME.replace(/\s*[\u00B7\u2022|]\s*UM Bydgoszcz\w*/gi, "").trim(),
     description: t("description"),
     icons: {
       icon: "/brand-favicon.png",

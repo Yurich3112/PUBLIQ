@@ -76,7 +76,7 @@ test('public config strips secrets while runtime validation reports field names 
   assert.deepEqual(getPublicConfig(values), { ...getWebConfig(), APP_NAME: 'Modulon Test' });
   assert.equal(getServerConfig(values).PORT, 3002);
   assert.equal(JSON.stringify(getServerConfig(values)).includes('private-value'), false);
-  assert.equal(getWebConfig().APP_NAME, 'Asystent UDIP · UM Bydgoszcz');
+  assert.equal(getWebConfig().APP_NAME, 'PUBLIQ — Asystent UDIP');
   for (const invalid of [{ PORT: 'secret-value' }, { PORT: 0 }, { TZ: 'secret-value' }]) {
     assert.throws(() => getServerConfig(invalid), (error) => {
       assert.match(error.message, /Invalid server configuration: (PORT|TZ)/);

@@ -56,7 +56,7 @@ pnpm validate:qa
 pnpm validate:certs
 ```
 
-`stack:init` generates secrets for missing env files and preserves existing files.
+`stack:init` creates missing DEV infrastructure and application env files and preserves existing files. Only `SECRET_CHANGE_ME` / `CHANGE_ME` placeholders in the infrastructure template are replaced with random values; the shipped examples use shared local passwords so a fresh clone matches across Web, Prisma and Compose.
 Committed `.env.dev.example` / `.env.qa.example` describe only retained settings.
 Real values remain ignored. Review `STACK_NAME`, ports, public URLs and TLS paths
 before startup. DEV is `modulonpocdev`; QA is `modulonpocqa`, with independent

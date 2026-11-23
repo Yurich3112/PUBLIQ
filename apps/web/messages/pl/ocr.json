@@ -72,7 +72,7 @@
       "previewTemplate": "Podgląd szablonu",
       "hideTemplate": "Ukryj szablon",
       "copyTemplate": "Kopiuj wzór odpowiedzi",
-      "departmentsLabel": "Sugerowane wydziały UM Bydgoszcz (zaznacz do wysłania zapytań)",
+      "departmentsLabel": "Sugerowane wydziały (zaznacz do wysłania zapytań)",
       "applicantLabel": "Wnioskodawca",
       "subjectLabel": "Przedmiot zapytania (do Kalendarza)",
       "saveToCalendar": "Zapisz sprawę w Kalendarzu",
@@ -93,14 +93,14 @@
           "hint": "Skopiuj gotowy projekt pisma przekierowującego (wysyłka poza aplikacją) i zarejestruj sprawę w kalendarzu."
         },
         "OTHER_INTERNAL_DEPARTMENT": {
-          "title": "Scenariusz 4: Wymagane dane z innego wydziału / kilku wydziałów UM Bydgoszcz",
+          "title": "Scenariusz 4: Wymagane dane z innego wydziału / kilku wydziałów",
           "hint": "Potwierdź sugerowane wydziały poniżej i zapisz sprawę — w kalendarzu pojawią się statusy 🔴 Oczekujemy / 🟢 Odpowiedź."
         }
       }
     },
     "clarification": {
       "title": "Wezwanie do uzupełnienia / doprecyzowania wniosku (7 dni)",
-      "subtitle": "Gotowy projekt pisma BKS UM Bydgoszczy dla nieczytelnego skanu.",
+      "subtitle": "Gotowy projekt pisma dla nieczytelnego skanu.",
       "editorLabel": "Treść wezwania do uzupełnienia",
       "copy": "Kopiuj treść",
       "copied": "Skopiowano",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowCounterclockwise, ArrowLeft, ArrowRight, CheckCircle, CheckLg, PencilSquare, Trash } from "react-bootstrap-icons";
 import type { OcrLine, OcrPage, OcrWord } from "@/schemas/ocr";
@@ -14,6 +14,73 @@ interface RenderedLineGroup {
   angleDeg: number;
   words: OcrWord[];
   fontCqw: number;
+}
+
+function FittedLine({
+  leftPct,
+  topPct,
+  minHeightPct,
+  maxWidthPct,
+  fontCqw,
+  angleDeg,
+  children,
+}: {
+  leftPct: number;
+  topPct: number;
+  minHeightPct: number;
+  maxWidthPct: number;
+  fontCqw: number;
+  angleDeg: number;
+  children: ReactNode;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const content = contentRef.current;
+    if (!box || !content) return;
+    const fit = () => {
+      const available = box.clientWidth;
+      const needed = content.scrollWidth;
+      const next = available > 0 && needed > available + 1 ? available / needed : 1;
+      setScale(previous => (Math.abs(previous - next) < 0.01 ? previous : next));
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(box);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [children, fontCqw, maxWidthPct]);
+
+  const rotate = Math.abs(angleDeg) >= 1.5 ? ` rotate(${angleDeg}deg)` : "";
+
+  return (
+    <div
+      ref={boxRef}
+      className="absolute overflow-hidden"
+      style={{
+        left: `${leftPct}%`,
+        top: `${topPct}%`,
+        width: `${maxWidthPct}%`,
+        minHeight: `${minHeightPct}%`,
+      }}
+    >
+      <div
+        ref={contentRef}
+        className="flex w-max flex-nowrap items-baseline gap-x-[0.28em] whitespace-nowrap"
+        style={{
+          fontSize: `clamp(5px, ${fontCqw}cqw, 22px)`,
+          lineHeight: 1.08,
+          transform: scale < 0.995 ? `scale(${scale})${rotate}` : rotate.trim() || undefined,
+          transformOrigin: "left center",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function median(values: number[]): number {
@@ -107,10 +174,15 @@ function buildAlignedLines(
 
     const effectiveH = isInflatedBodyBox ? pageMedWordH : group.medWordH;
     const ratio = effectiveH / pageMedWordH;
-    const fontCqw =
+    const desiredCqw =
       group.zone !== "stamp" && ratio >= 0.68
         ? uniformBodyCqw
         : Math.max(0.72, Math.min(uniformBodyCqw, uniformBodyCqw * Math.max(0.65, ratio)));
+    const chars = group.words.reduce((sum, word) => sum + getWordDisplayText(word, editedWords).length, 0);
+    const estimatedEm = chars * 0.62 + Math.max(0, group.words.length - 1) * 0.4;
+    const availablePct = Math.max(4, 100 - (gx / page.width) * 100 - 1.2);
+    const widthCap = estimatedEm > 0 ? availablePct / estimatedEm : desiredCqw;
+    const fontCqw = Math.max(0.55, Math.min(desiredCqw, widthCap));
 
     return {
       lineId: group.lineId,
@@ -465,29 +537,21 @@ export function TranscriptionPane({
             }}
           >
             {alignedLines.map(line => {
-              const [lx, ly, lw, lh] = line.bbox;
-              const leftPct = (lx / page.width) * 100;
-              const topPct = (ly / page.height) * 100;
+              const [lx, ly, , lh] = line.bbox;
+              const leftPct = Math.min(97, Math.max(0, (lx / page.width) * 100));
+              const topPct = Math.min(97, Math.max(0, (ly / page.height) * 100));
               const minHeightPct = (lh / page.height) * 100;
-              const maxWidthPct = Math.max((lw / page.width) * 100, 100 - leftPct);
+              const maxWidthPct = Math.max(3, 100 - leftPct - 0.8);
 
               return (
-                <div
+                <FittedLine
                   key={line.lineId}
-                  style={{
-                    left: `${leftPct}%`,
-                    top: `${topPct}%`,
-                    minHeight: `${minHeightPct}%`,
-                    maxWidth: `${maxWidthPct}%`,
-                    fontSize: `clamp(5px, ${line.fontCqw}cqw, 22px)`,
-                    lineHeight: 1.08,
-                    transform:
-                      Math.abs(line.angleDeg) >= 1.5
-                        ? `rotate(${line.angleDeg}deg)`
-                        : undefined,
-                    transformOrigin: "left center",
-                  }}
-                  className="absolute flex flex-nowrap items-baseline gap-x-[0.28em] whitespace-nowrap"
+                  leftPct={leftPct}
+                  topPct={topPct}
+                  minHeightPct={minHeightPct}
+                  maxWidthPct={maxWidthPct}
+                  fontCqw={line.fontCqw}
+                  angleDeg={line.angleDeg}
                 >
                   {line.words.map(word => {
                     if (deletedWords.has(word.id)) return null;
@@ -562,7 +626,7 @@ export function TranscriptionPane({
                       </button>
                     );
                   })}
-                </div>
+                </FittedLine>
               );
             })}
           </div>

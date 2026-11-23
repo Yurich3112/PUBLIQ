@@ -63,8 +63,8 @@ To satisfy Requirement #1 & #8 (*"sprawdzić jaki realnie będzie potrzebny mode
 
 | Task | Model / Tool | Footprint | Why it fits UM Bydgoszcz |
 | :--- | :--- | :--- | :--- |
-| **OCR, JSON Summaries & Drafts (Primary)** | **`Gemma 4 E4B` (`gemma4:e4b` via Ollama · Apache 2.0)** | **~3–5 GB** | Single unified multimodal open-weight model (vision + text) for handwriting OCR refinement, JSON summaries, and official BKS letter/email drafts — 100% air-gapped. |
-| **Lightweight CPU Fallback** | **`Gemma 4 E2B` (`gemma4:e2b` via Ollama · Apache 2.0)** | **~1.5–2.5 GB RAM (CPU)** | Smaller model from the same Gemma 4 family (Apache 2.0) for CPU-only municipal workstations without a GPU. |
+| **OCR, JSON Summaries & Drafts (Primary)** | **`Gemma 4 E4B` (`gemma4:e4b` via Ollama · Apache 2.0)** | **~6.6–9.5 GB download** | Single unified multimodal open-weight model (vision + text) for handwriting OCR refinement, JSON summaries, and official BKS letter/email drafts — 100% air-gapped. |
+| **Lightweight CPU Fallback** | **`Gemma 4 E2B` (`gemma4:e2b` via Ollama · Apache 2.0)** | **~4.6–7.5 GB download** | Smaller model from the same Gemma 4 family (Apache 2.0) for 16 GB RAM or CPU-only municipal workstations. |
 | **Grid Eraser, Word Boxes & PII Guard** | **OpenCV Grid-Line Eraser** + **RapidOCR (ONNX)** + **`perplexity-ai/PII-Tracer`** (~600M) + Polish Legal Regex (28 BKS categories) | **~1.2 GB RAM (CPU)** | Removes graph-paper lines (*kartka w kratkę*) in 5ms, extracts exact `[x, y, w, h]` word bounding boxes for 1:1 split-screen UI, and performs BIOES PII detection with Art. 5 ust. 2 UDIP guard. |
 
 If a local model is unavailable, keep manual transcription, structured summaries, template drafting and manual redaction available. Final supervisor approval continues to apply.

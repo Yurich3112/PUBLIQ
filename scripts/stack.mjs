@@ -9,6 +9,12 @@ import { Qa } from './qa.mjs';
 import { composeArgs } from './lib/compose.mjs';
 import { DevInfra } from './dev-infra.mjs';
 
+const DEV_APPLICATION_ENVS = [
+  'apps/web/.env',
+  'apps/pyworker/.env',
+  'packages/database/.env',
+];
+
 export async function initializeEnvironment(directory, mode) {
   if (!['dev', 'qa'].includes(mode)) throw new Error('Mode must be dev or qa');
   const file = path.join(directory, `.env.${mode}`);
@@ -23,6 +29,25 @@ export async function initializeEnvironment(directory, mode) {
     return false;
   }
   return true;
+}
+
+/** Copy missing DEV application env files. Never overwrites an existing file. */
+export async function initializeApplicationEnvironments(root = ROOT) {
+  const created = [];
+  for (const relative of DEV_APPLICATION_ENVS) {
+    const file = path.join(root, relative);
+    const template = await readFile(`${file}.example`, 'utf8');
+    const content = template
+      .replace(/^(# @file:\s+.*?)\.example$/gm, '$1')
+      .replace(/^(# ===\[EOF @file:.*?)\.example(\].*)$/gm, '$1$2');
+    try {
+      await writeFile(file, content, { flag: 'wx', mode: 0o600 });
+      created.push(relative);
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  return created;
 }
 
 main(import.meta.url, async () => {
@@ -45,6 +70,12 @@ main(import.meta.url, async () => {
     const created = await initializeEnvironment(path.dirname(file), values.mode);
     logStatus(created ? `[ok] Created infra/local/.env.${values.mode}, random credentials hidden.`
       : `[skip] infra/local/.env.${values.mode} already exists, values preserved.`);
+    if (values.mode === 'dev') {
+      const applications = await initializeApplicationEnvironments(ROOT);
+      logStatus(applications.length
+        ? `[ok] Created ${applications.join(', ')} from examples. Existing files were left unchanged.`
+        : '[skip] Application env files already exist, values preserved.');
+    }
     return;
   }
   if (values.mode === 'qa' && action === 'up') {

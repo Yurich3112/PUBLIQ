@@ -1,8 +1,8 @@
 {
   "home": {
-    "title": "Inteligentny Asystent Urzędnika — UM Bydgoszcz (UDIP)",
-    "description": "Kalendarz wniosków o informację publiczną, weryfikator OCR i generator odpowiedzi BKS Urzędu Miasta Bydgoszczy.",
-    "eyebrow": "Urząd Miasta Bydgoszczy · BKS",
+    "title": "Inteligentny Asystent Urzędnika (UDIP)",
+    "description": "Kalendarz wniosków o informację publiczną, weryfikator OCR i generator odpowiedzi.",
+    "eyebrow": "Asystent UDIP",
     "about": "O projekcie",
     "team": "Poznaj zespół",
     "capabilities": {

@@ -250,7 +250,7 @@ export function KnowledgeRecommendationCard({
                   </div>
                   <p className="text-amber-900/90 dark:text-amber-200/90">
                     {matchResult.externalAuthorityHint?.legalBasis ??
-                      "Art. 4 ust. 3 UDIP — Urząd Miasta Bydgoszczy nie jest dysponentem danych."}
+                      "Art. 4 ust. 3 UDIP — urząd nie jest dysponentem danych."}
                   </p>
                 </div>
 
@@ -260,14 +260,14 @@ export function KnowledgeRecommendationCard({
                   className="w-full justify-center text-xs"
                   onClick={() => handleToggleOverrideExternal(true)}
                 >
-                  AI się myli — wybierz wydziały UM Bydgoszcz
+                  AI się myli — wybierz wydziały
                 </Button>
               </>
             ) : (
               <>
                 {matchResult.scenario === "EXTERNAL_INSTITUTION" && overrideExternal ? (
                   <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-950 dark:text-blue-100">
-                    <span className="font-semibold">Nadpisano: sprawa wewnętrzna UM Bydgoszcz</span>
+                    <span className="font-semibold">Nadpisano: sprawa wewnętrzna</span>
                     <button
                       type="button"
                       onClick={() => handleToggleOverrideExternal(false)}
@@ -344,7 +344,7 @@ export function KnowledgeRecommendationCard({
                     </p>
                   </div>
                 ) : (
-                  /* Select / Confirm UM Bydgoszcz Departments — crisp vertical list */
+                  /* Select / confirm departments — crisp vertical list */
                   internalDepartments.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2 text-xs font-semibold text-foreground">

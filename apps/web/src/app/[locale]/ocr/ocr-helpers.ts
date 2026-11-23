@@ -214,12 +214,9 @@ export function buildClarificationNoticeDraft({
   const intakeDate = receivedDate || todayIso;
 
   return [
-    "URZĄD MIASTA BYDGOSZCZY",
     "Biuro Komunikacji Społecznej",
-    "85-102 Bydgoszcz, ul. Jezuicka 1",
-    "e-mail: bks@um.bydgoszcz.pl",
     "",
-    `Bydgoszcz, dnia ${todayIso} r.`,
+    `dnia ${todayIso} r.`,
     "Znak sprawy: BKS.IV.1431.___.2026",
     "",
     "WEZWANIE DO UZUPEŁNIENIA / DOPRECYZOWANIA WNIOSKU",
@@ -240,6 +237,5 @@ export function buildClarificationNoticeDraft({
     "",
     "Z wyrazami szacunku,",
     "Biuro Komunikacji Społecznej",
-    "Urząd Miasta Bydgoszczy",
   ].join("\n");
 }

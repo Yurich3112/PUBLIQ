@@ -13,25 +13,23 @@ Read [workspace commands](0205-workspace-commands.md) for the command contracts.
 
 ```powershell
 pnpm install --frozen-lockfile
-if (-not (Test-Path -LiteralPath .\apps\web\.env)) {
-    Copy-Item -LiteralPath .\apps\web\.env.example -Destination .\apps\web\.env
-}
-if (-not (Test-Path -LiteralPath .\packages\database\.env)) {
-    Copy-Item -LiteralPath .\packages\database\.env.example -Destination .\packages\database\.env
-}
 pnpm stack:init
 ```
 
-`stack:init` creates a missing `infra/local/.env.dev` with generated placeholder
-secrets and preserves an existing file. It does not start Docker or synchronize
-existing service passwords. In this checkout, local Docker env files and DEV
-certificates were copied earlier. A fresh clone does not contain those ignored
-files. Provision the local server certificate/key and public CA certificate
-before using DEV preflight; see [Local HTTPS and CA trust](0318-local-tls.md).
+`stack:init` creates a missing `infra/local/.env.dev` and, for DEV, the missing
+`apps/web/.env`, `apps/pyworker/.env` and `packages/database/.env` from their
+examples. It preserves every file that already exists and does not start Docker
+or rotate passwords already written into a volume. A fresh clone does not
+contain those ignored files or TLS material. Provision the local server
+certificate, key and public CA before DEV preflight; see
+[Local HTTPS and CA trust](0318-local-tls.md). The filenames the stack expects
+are `infra/local/certs/localhost.pem`, `localhost-key.pem` and `rootCA.pem`.
 
-Set the application DATABASE_URL in both owning env files using the selected
-local infrastructure credentials; see the [database recipe](0303-prisma-database.md).
-Examples contain placeholders, not usable credentials.
+The shipped examples already use the same local database user and password in
+`apps/web/.env`, `packages/database/.env` and `infra/local/.env.dev`, so a fresh
+clone connects without hand-editing URLs. If you replace an infrastructure
+password, update both application URLs to match; see the
+[database recipe](0303-prisma-database.md).
 
 Do not copy another developer's live database, session or production credentials
 into templates. Keep `.env` files and private keys ignored. The shared lockfile

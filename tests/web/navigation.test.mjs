@@ -35,6 +35,7 @@ test('contextual gallery links point to existing sections and breadcrumbs use kn
   assert.deepEqual(pageBreadcrumbs('/'), []);
   assert.deepEqual(pageBreadcrumbs('/kalendarz'), [{ label: 'home', href: '/' }, { label: 'calendar' }]);
   assert.deepEqual(pageBreadcrumbs('/ocr'), [{ label: 'home', href: '/' }, { label: 'ocr' }]);
+  assert.deepEqual(pageBreadcrumbs('/ocr/pokaz'), [{ label: 'home', href: '/' }, { label: 'ocr', href: '/ocr' }, { label: 'ocrShow' }]);
   assert.deepEqual(pageBreadcrumbs('/sprawy/test-uuid'), [{ label: 'home', href: '/' }, { label: 'calendar', href: '/kalendarz' }, { label: 'caseDetail' }]);
   assert.deepEqual(pageBreadcrumbs('/admin/'), [{ label: 'home', href: '/' }, { label: 'admin' }]);
   assert.deepEqual(pageBreadcrumbs('/admin/knowledge'), [{ label: 'home', href: '/' }, { label: 'admin', href: '/admin/knowledge' }, { label: 'knowledge' }]);
